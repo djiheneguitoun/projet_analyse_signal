@@ -27,7 +27,7 @@ LABELS = {
 
 class CorrelationAnalyzer:
 
-    def __init__(self, db_path="air_quality.db"):
+    def __init__(self, db_path="db_air_quality"):
         
 
         self.db = AirQualityDatabase(db_path)
@@ -137,7 +137,7 @@ class CorrelationAnalyzer:
         self.db.connect()
         
         #vider les anciens résults
-        self.db.cursor.execute("DELETE FROM correlation_results WHERE correlation_type = ?", (method,))
+        self.db.cursor.execute("DELETE FROM correlation_results WHERE correlation_type = %s", (method,))
         
         #et insérer les nouvelles corrélations
         count = 0
@@ -150,7 +150,7 @@ class CorrelationAnalyzer:
                 self.db.cursor.execute('''
                     INSERT INTO correlation_results 
                     (variable1, variable2, correlation_coefficient, correlation_type)
-                    VALUES (?, ?, ?, ?)
+                    VALUES (%s, %s, %s, %s)
                 ''', (var1, var2, float(coef), method))
                 count += 1
         
@@ -160,19 +160,20 @@ class CorrelationAnalyzer:
         print(f"{count} Correlation Results Stored in Database (méthode: {method})")
     
     def plot_heatmap(self, method='pearson', save_path=None):
-        #crée une heatmap des corrélations
+        #crée une heatmap des corrélations (complete, sans masque)
     
         if method == 'pearson':
             corr_matrix = self.calculate_pearson_correlation()
         else:
             corr_matrix = self.calculate_spearman_correlation()
         
+        # Rename columns to display labels
+        corr_matrix = corr_matrix.rename(index=LABELS, columns=LABELS)
+        
         plt.figure(figsize=(14, 10))
         
-        #la heatmap
-        mask = np.triu(np.ones_like(corr_matrix, dtype=bool))
+        # Full heatmap without mask
         sns.heatmap(corr_matrix, 
-                    mask=mask,
                     annot=True, 
                     fmt='.2f', 
                     cmap='RdBu_r',
@@ -180,7 +181,8 @@ class CorrelationAnalyzer:
                     square=True,
                     linewidths=0.5,
                     cbar_kws={'shrink': 0.8},
-                    annot_kws={'size': 8})
+                    annot_kws={'size': 8},
+                    vmin=-1, vmax=1)
         
         plt.title(f'Correlation Matrix ({method.capitalize()})', fontsize=14, fontweight='bold')
         plt.tight_layout()

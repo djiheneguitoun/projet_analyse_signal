@@ -28,7 +28,7 @@ class EnvironmentalDataGUI:
         self.root.minsize(1000, 600)  #max réduire possible
         
         #variables
-        self.db = AirQualityDatabase("air_quality.db")
+        self.db = AirQualityDatabase("db_air_quality")
         self.data = None
         self.COLUMN_MAP = {
             'CO': 'co_gt',
@@ -236,8 +236,9 @@ class EnvironmentalDataGUI:
         right_frame = ttk.LabelFrame(tab, text="Data overview", padding=10)
         right_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
-        columns = ('ID', 'Date', 'Time', 'CO', 'NO2','Temperature', 'Humidity')
-        self.data_tree = ttk.Treeview(right_frame, columns=columns, show='headings', height=20)
+        # Columns without Date and Time
+        columns = ('ID', 'CO', 'NO2', 'Temperature', 'Humidity')
+        self.data_tree = ttk.Treeview(right_frame, columns=columns, show='headings', height=15)
         
         for col in columns:
             self.data_tree.heading(col, text=col)
@@ -251,6 +252,14 @@ class EnvironmentalDataGUI:
         self.data_tree.grid(row=0, column=0, sticky='nsew')
         vsb.grid(row=0, column=1, sticky='ns')
         hsb.grid(row=1, column=0, sticky='ew')
+        
+        # Buttons for CRUD operations
+        btn_frame = ttk.Frame(right_frame)
+        btn_frame.grid(row=2, column=0, columnspan=2, sticky='ew', pady=(10, 0))
+        
+        ttk.Button(btn_frame, text="Add Row", command=self.add_row).pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text="Edit Row", command=self.edit_row).pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text="Delete Row", command=self.delete_row).pack(side=tk.LEFT, padx=5)
         
         right_frame.grid_rowconfigure(0, weight=1)
         right_frame.grid_columnconfigure(0, weight=1)
@@ -301,19 +310,16 @@ class EnvironmentalDataGUI:
         ttk.Button(left_frame, text="Reset", command=self.reset_filter).pack(fill=tk.X, pady=5)
         ttk.Button(left_frame, text="Save Filtered Data to DB", command=self.save_filtered_data).pack(fill=tk.X, pady=5)
 
-        right_frame = ttk.LabelFrame(tab, text="Filter Visualization", padding=10)
-        right_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-       
-        # Frame pour le tableau filtré
+        # Frame pour le tableau filtré (principal, à droite)
         filtered_frame = ttk.LabelFrame(tab, text="Filtered Data", padding=10)
         filtered_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(10,0))
 
-        # Créer le Treeview
-        self.filtered_tree = ttk.Treeview(filtered_frame, columns=('Index', 'Value'), show='headings', height=20)
-        self.filtered_tree.heading('Index', text='Index')
-        self.filtered_tree.heading('Value', text='Value')
-        self.filtered_tree.column('Index', width=60, anchor='center', stretch=False)
-        self.filtered_tree.column('Value', width=80, anchor='center', stretch=False)
+        # Créer le Treeview avec les mêmes colonnes que le tableau principal
+        filter_columns = ('ID', 'CO', 'NO2', 'Temperature', 'Humidity')
+        self.filtered_tree = ttk.Treeview(filtered_frame, columns=filter_columns, show='headings', height=20)
+        for col in filter_columns:
+            self.filtered_tree.heading(col, text=col)
+            self.filtered_tree.column(col, width=100)
 
         # Scrollbars
         vsb_f = ttk.Scrollbar(filtered_frame, orient=tk.VERTICAL, command=self.filtered_tree.yview)
@@ -327,14 +333,13 @@ class EnvironmentalDataGUI:
         filtered_frame.grid_rowconfigure(0, weight=1)
         filtered_frame.grid_columnconfigure(0, weight=1)
 
+        # Small visualization frame (reduced size)
+        right_frame = ttk.LabelFrame(tab, text="Preview", padding=5)
+        right_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(10,0))
         
-        self.filter_fig = Figure(figsize=(8, 6), dpi=100)
+        self.filter_fig = Figure(figsize=(3, 4), dpi=80)
         self.filter_canvas = FigureCanvasTkAgg(self.filter_fig, right_frame)
         self.filter_canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
-        
-        toolbar_frame = ttk.Frame(right_frame)
-        toolbar_frame.pack(fill=tk.X)
-        NavigationToolbar2Tk(self.filter_canvas, toolbar_frame)
     
     #ONGLET 3: CORRÉLATION
     
@@ -386,35 +391,69 @@ class EnvironmentalDataGUI:
     
     def create_spectral_tab(self):
         tab = ttk.Frame(self.notebook, padding=10)
-        self.notebook.add(tab, text="Spectral (FFT)")
+        self.notebook.add(tab, text="Spectrum Analysis")
         
-        left_frame = ttk.LabelFrame(tab, text="FFT Settings", padding=10)
+        left_frame = ttk.LabelFrame(tab, text="Controls", padding=10)
         left_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
         
-        # Variable
-        ttk.Label(left_frame, text="Variable:").pack(anchor=tk.W)
-        self.spectral_var = ttk.Combobox(left_frame, values=self.display_columns)
+        # === SECTION 1: Variable Selection ===
+        ttk.Label(left_frame, text="1. Select Variable", font=('Helvetica', 10, 'bold')).pack(anchor=tk.W)
+        ttk.Label(left_frame, text="Choose the time series to analyze:").pack(anchor=tk.W, pady=(2, 5))
+        self.spectral_var = ttk.Combobox(left_frame, values=self.display_columns, state='readonly', width=20)
         self.spectral_var.set(self.display_columns[0])
-        self.spectral_var.pack(fill=tk.X, pady=5)
+        self.spectral_var.pack(fill=tk.X, pady=(0, 10))
         
-        #type de visualisation
-        ttk.Label(left_frame, text="Type:").pack(anchor=tk.W, pady=(10, 0))
-        self.spectral_type = ttk.Combobox(left_frame, values=['FFT', 'Power Spectrum(Welch)', 'periodogram'])
-        self.spectral_type.set('Power Spectrum (Welch)')
-        self.spectral_type.pack(fill=tk.X, pady=5)
+        # === SECTION 2: FFT Analysis ===
+        ttk.Separator(left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=5)
+        ttk.Label(left_frame, text="2. FFT Analysis", font=('Helvetica', 10, 'bold')).pack(anchor=tk.W, pady=(5, 5))
+        ttk.Button(left_frame, text="▶ Run FFT Analysis", command=self.run_spectral_analysis).pack(fill=tk.X, pady=5)
         
-        ttk.Button(left_frame, text="Analyze", command=self.run_spectral_analysis).pack(fill=tk.X, pady=20)
-        ttk.Button(left_frame, text="Save to Database", command=self.save_spectral_results).pack(fill=tk.X, pady=5)
-        
-        #résults
+        # === SECTION 3: Frequency Filters ===
         ttk.Separator(left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
-        ttk.Label(left_frame, text="Dominant Frequencies:", font=('Helvetica', 10, 'bold')).pack(anchor=tk.W)
+        ttk.Label(left_frame, text="3. Apply Filter (optional)", font=('Helvetica', 10, 'bold')).pack(anchor=tk.W)
+        ttk.Label(left_frame, text="Filter the frequency signal:").pack(anchor=tk.W, pady=(2, 5))
         
-        self.spectral_results = scrolledtext.ScrolledText(left_frame, height=10, width=25, font=('Consolas', 9))
+        # Filter type
+        self.spectral_filter_type = ttk.Combobox(left_frame, values=['Low-pass', 'High-pass', 'Band-pass'], state='readonly', width=20)
+        self.spectral_filter_type.set('Low-pass')
+        self.spectral_filter_type.pack(fill=tk.X, pady=5)
+        self.spectral_filter_type.bind('<<ComboboxSelected>>', self._update_filter_fields)
+        
+        # Filter parameters frame
+        self.filter_params_frame = ttk.Frame(left_frame)
+        self.filter_params_frame.pack(fill=tk.X, pady=5)
+        
+        # Cutoff frequency (for low-pass and high-pass)
+        self.cutoff_frame = ttk.Frame(self.filter_params_frame)
+        self.cutoff_frame.pack(fill=tk.X)
+        ttk.Label(self.cutoff_frame, text="Cutoff (Hz):").pack(side=tk.LEFT)
+        self.cutoff_freq = ttk.Entry(self.cutoff_frame, width=10)
+        self.cutoff_freq.insert(0, "0.04")
+        self.cutoff_freq.pack(side=tk.RIGHT, padx=5)
+        
+        # Band-pass frame (hidden by default)
+        self.bandpass_frame = ttk.Frame(self.filter_params_frame)
+        ttk.Label(self.bandpass_frame, text="Low (Hz):").grid(row=0, column=0, sticky=tk.W)
+        self.low_cutoff = ttk.Entry(self.bandpass_frame, width=8)
+        self.low_cutoff.insert(0, "0.01")
+        self.low_cutoff.grid(row=0, column=1, padx=5, pady=2)
+        ttk.Label(self.bandpass_frame, text="High (Hz):").grid(row=1, column=0, sticky=tk.W)
+        self.high_cutoff = ttk.Entry(self.bandpass_frame, width=8)
+        self.high_cutoff.insert(0, "0.1")
+        self.high_cutoff.grid(row=1, column=1, padx=5, pady=2)
+        
+        ttk.Button(left_frame, text="Apply Filter", command=self.apply_spectral_filter).pack(fill=tk.X, pady=5)
+        
+        # === Results Section ===
+        ttk.Separator(left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
+        ttk.Label(left_frame, text="Results", font=('Helvetica', 10, 'bold')).pack(anchor=tk.W)
+        self.spectral_results = scrolledtext.ScrolledText(left_frame, height=8, width=25, font=('Consolas', 9))
         self.spectral_results.pack(fill=tk.X, pady=5)
         
-        # Frame droite - Graphique
-        right_frame = ttk.LabelFrame(tab, text="Spectrum", padding=10)
+        ttk.Button(left_frame, text="Save to Database", command=self.save_spectral_results).pack(fill=tk.X, pady=10)
+        
+        # === Right Frame - Spectrum Plot ===
+        right_frame = ttk.LabelFrame(tab, text="Power Spectrum", padding=10)
         right_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
         self.spectral_fig = Figure(figsize=(8, 6), dpi=100)
@@ -424,6 +463,20 @@ class EnvironmentalDataGUI:
         toolbar_frame = ttk.Frame(right_frame)
         toolbar_frame.pack(fill=tk.X)
         NavigationToolbar2Tk(self.spectral_canvas, toolbar_frame)
+    
+    def _update_filter_fields(self, event=None):
+        """Update filter parameter fields based on selected filter type"""
+        filter_type = self.spectral_filter_type.get()
+        
+        # Hide all frames first
+        self.cutoff_frame.pack_forget()
+        self.bandpass_frame.pack_forget()
+        
+        # Show appropriate frame
+        if filter_type in ['Low-pass', 'High-pass']:
+            self.cutoff_frame.pack(fill=tk.X)
+        elif filter_type == 'Band-pass':
+            self.bandpass_frame.pack(fill=tk.X)
     
     #ONGLET 5: TRAITEMENT D'IMAGES
     
@@ -563,12 +616,10 @@ Humidity:
             self.data_tree.delete(item)
         
         if self.data is not None and len(self.data) > 0:
-            # Afficher tous les enregistrements
+            # Afficher tous les enregistrements (sans date et time)
             for idx, row in self.data.iterrows():
                 values = (
                     row.get('id', idx),
-                    row.get('date', ''),
-                    row.get('time', ''),
                     f"{row.get('co_gt', 0):.2f}" if pd.notna(row.get('co_gt')) else '',
                     f"{row.get('no2_gt', 0):.2f}" if pd.notna(row.get('no2_gt')) else '',
                     f"{row.get('temperature', 0):.1f}" if pd.notna(row.get('temperature')) else '',
@@ -656,8 +707,8 @@ Humidity:
             try:
                 self.db.connect()
                 self.db.cursor.execute("DELETE FROM air_quality_measurements")
-                #Réinitialiser le compteur d'auto-increment 
-                self.db.cursor.execute("DELETE FROM sqlite_sequence WHERE name='air_quality_measurements'")
+                # Reset auto-increment for MySQL
+                self.db.cursor.execute("ALTER TABLE air_quality_measurements AUTO_INCREMENT = 1")
                 self.db.connection.commit()
                 self.db.disconnect()
                 
@@ -669,6 +720,124 @@ Humidity:
             except Exception as e:
                 self.log(f"Error: {str(e)}")
                 messagebox.showerror("Error", f"Unable to clear the database: {str(e)}")
+    
+    def add_row(self):
+        """Add a new row to the database"""
+        # Create a dialog window for adding data
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Add New Row")
+        dialog.geometry("300x250")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        fields = ['CO', 'NO2', 'Temperature', 'Humidity']
+        entries = {}
+        
+        for i, field in enumerate(fields):
+            ttk.Label(dialog, text=f"{field}:").grid(row=i, column=0, padx=10, pady=5, sticky='w')
+            entry = ttk.Entry(dialog)
+            entry.grid(row=i, column=1, padx=10, pady=5, sticky='ew')
+            entries[field] = entry
+        
+        def save_new_row():
+            try:
+                self.db.connect()
+                co = float(entries['CO'].get()) if entries['CO'].get() else None
+                no2 = float(entries['NO2'].get()) if entries['NO2'].get() else None
+                temp = float(entries['Temperature'].get()) if entries['Temperature'].get() else None
+                hum = float(entries['Humidity'].get()) if entries['Humidity'].get() else None
+                
+                self.db.insert_measurement(
+                    date="N/A", time="N/A",
+                    co_gt=co, no2_gt=no2,
+                    temperature=temp, humidity=hum
+                )
+                self.db.disconnect()
+                self.load_data_from_db()
+                self.log("New row added")
+                dialog.destroy()
+                messagebox.showinfo("Success", "Row added successfully!")
+            except Exception as e:
+                self.log(f"Error adding row: {e}")
+                messagebox.showerror("Error", f"Failed to add row: {e}")
+        
+        ttk.Button(dialog, text="Save", command=save_new_row).grid(row=len(fields), column=0, columnspan=2, pady=20)
+    
+    def edit_row(self):
+        """Edit the selected row"""
+        selected = self.data_tree.selection()
+        if not selected:
+            messagebox.showwarning("Warning", "Please select a row to edit")
+            return
+        
+        item = self.data_tree.item(selected[0])
+        values = item['values']
+        record_id = values[0]
+        
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Edit Row")
+        dialog.geometry("300x250")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        fields = ['CO', 'NO2', 'Temperature', 'Humidity']
+        entries = {}
+        
+        for i, field in enumerate(fields):
+            ttk.Label(dialog, text=f"{field}:").grid(row=i, column=0, padx=10, pady=5, sticky='w')
+            entry = ttk.Entry(dialog)
+            entry.insert(0, str(values[i+1]) if values[i+1] else '')
+            entry.grid(row=i, column=1, padx=10, pady=5, sticky='ew')
+            entries[field] = entry
+        
+        def save_edit():
+            try:
+                self.db.connect()
+                updates = {}
+                if entries['CO'].get():
+                    updates['co_gt'] = float(entries['CO'].get())
+                if entries['NO2'].get():
+                    updates['no2_gt'] = float(entries['NO2'].get())
+                if entries['Temperature'].get():
+                    updates['temperature'] = float(entries['Temperature'].get())
+                if entries['Humidity'].get():
+                    updates['humidity'] = float(entries['Humidity'].get())
+                
+                if updates:
+                    self.db.update_measurement(record_id, **updates)
+                self.db.disconnect()
+                self.load_data_from_db()
+                self.log(f"Row {record_id} updated")
+                dialog.destroy()
+                messagebox.showinfo("Success", "Row updated successfully!")
+            except Exception as e:
+                self.log(f"Error editing row: {e}")
+                messagebox.showerror("Error", f"Failed to edit row: {e}")
+        
+        ttk.Button(dialog, text="Save", command=save_edit).grid(row=len(fields), column=0, columnspan=2, pady=20)
+    
+    def delete_row(self):
+        """Delete the selected row"""
+        selected = self.data_tree.selection()
+        if not selected:
+            messagebox.showwarning("Warning", "Please select a row to delete")
+            return
+        
+        if messagebox.askyesno("Confirm", "Are you sure you want to delete this row?"):
+            try:
+                item = self.data_tree.item(selected[0])
+                record_id = item['values'][0]
+                
+                self.db.connect()
+                self.db.delete_measurement(record_id)
+                self.db.disconnect()
+                
+                self.load_data_from_db()
+                self.log(f"Row {record_id} deleted")
+                messagebox.showinfo("Success", "Row deleted successfully!")
+            except Exception as e:
+                self.log(f"Error deleting row: {e}")
+                messagebox.showerror("Error", f"Failed to delete row: {e}")
     
     def export_data(self):
         #Exporte les données en CSV
@@ -731,12 +900,14 @@ Humidity:
         window = int(float(self.window_size.get()))
         
         self.filter_fig.clear()
-        ax1 = self.filter_fig.add_subplot(211)
-        ax2 = self.filter_fig.add_subplot(212)
+        ax = self.filter_fig.add_subplot(111)
         
         var_selected = self.filter_var.get()         
         df_column = self.COLUMN_MAP[var_selected]  
-        original = self.data[df_column].dropna().values[:1000]
+        
+        # Create a working copy of data
+        filtered_data = self.data.copy()
+        original = filtered_data[df_column].dropna().values[:1000]
 
         
         #Appliquer le filtre
@@ -746,6 +917,9 @@ Humidity:
         elif filter_type == 'Threshold Filter':
             min_val = float(self.threshold_min.get())
             max_val = float(self.threshold_max.get())
+            # Filter rows based on threshold
+            mask = (filtered_data[df_column] >= min_val) & (filtered_data[df_column] <= max_val)
+            filtered_data = filtered_data[mask]
             filtered = np.clip(original, min_val, max_val)
             title = f"Thresholding [{min_val}, {max_val}]"
         else:  # Outliers
@@ -753,28 +927,29 @@ Humidity:
             iqr = q3 - q1
             filtered = np.clip(original, q1 - 1.5*iqr, q3 + 1.5*iqr)
             title = "Remove Outliers (IQR)"
-            # Mettre à jour le tableau filtered_tree
+        
+        # Update the filtered_tree with same columns as main table
         for item in self.filtered_tree.get_children():
             self.filtered_tree.delete(item)
 
-        for i, val in enumerate(filtered):
-            self.filtered_tree.insert('', tk.END, values=(i, f"{val:.2f}"))
+        # Show filtered data with all columns (same format as main table)
+        for idx, row in filtered_data.head(1000).iterrows():
+            values = (
+                row.get('id', idx),
+                f"{row.get('co_gt', 0):.2f}" if pd.notna(row.get('co_gt')) else '',
+                f"{row.get('no2_gt', 0):.2f}" if pd.notna(row.get('no2_gt')) else '',
+                f"{row.get('temperature', 0):.1f}" if pd.notna(row.get('temperature')) else '',
+                f"{row.get('humidity', 0):.1f}" if pd.notna(row.get('humidity')) else ''
+            )
+            self.filtered_tree.insert('', tk.END, values=values)
 
         
-        # Graphiques
-        ax1.plot(original, 'b-', linewidth=0.5, alpha=0.7, label='Original')
-        ax1.set_title(f'Original Signal: {var}', fontweight='bold')
-        ax1.set_ylabel('Value')
-        ax1.legend()
-        ax1.grid(True, alpha=0.3)
-        
-        ax2.plot(original, 'b-', linewidth=0.3, alpha=0.3, label='Original')
-        ax2.plot(filtered, 'r-', linewidth=1, label=title)
-        ax2.set_title(f'Filtered Signal: {title}', fontweight='bold')
-        ax2.set_xlabel('Index')
-        ax2.set_ylabel('Value')
-        ax2.legend()
-        ax2.grid(True, alpha=0.3)
+        # Simple graph in reduced space
+        ax.plot(original[:200], 'b-', linewidth=0.5, alpha=0.5, label='Original')
+        ax.plot(filtered[:200], 'r-', linewidth=1, label='Filtered')
+        ax.set_title(f'{var}: {title}', fontsize=8, fontweight='bold')
+        ax.legend(fontsize=6)
+        ax.grid(True, alpha=0.3)
         
         self.filter_fig.tight_layout()
         self.filter_canvas.draw()
@@ -844,9 +1019,9 @@ Humidity:
         self.corr_fig.clear()
         ax = self.corr_fig.add_subplot(111)
         
-        mask = np.triu(np.ones_like(corr_matrix, dtype=bool))
-        sns.heatmap(corr_matrix, mask=mask, annot=True, fmt='.2f', cmap='RdBu_r',
-                   center=0, ax=ax, cbar_kws={'shrink': 0.8})
+        # Show complete heatmap without mask (including all correlation values)
+        sns.heatmap(corr_matrix, annot=True, fmt='.2f', cmap='RdBu_r',
+                   center=0, ax=ax, cbar_kws={'shrink': 0.8}, vmin=-1, vmax=1)
         
         ax.set_title(f'Correlation Matrix ({method.capitalize()})', fontweight='bold')
         
@@ -879,9 +1054,13 @@ Humidity:
         
         corr = self.data[var_x].corr(self.data[var_y])
         
-        ax.set_xlabel(var_x)
-        ax.set_ylabel(var_y)
-        ax.set_title(f'{var_x} vs {var_y} (r = {corr:.3f})', fontweight='bold')
+        # Use display names instead of column names
+        display_x = self.corr_var_x.get()
+        display_y = self.corr_var_y.get()
+        
+        ax.set_xlabel(display_x)
+        ax.set_ylabel(display_y)
+        ax.set_title(f'{display_x} vs {display_y} (r = {corr:.3f})', fontweight='bold')
         ax.legend()
         ax.grid(True, alpha=0.3)
         
@@ -905,85 +1084,197 @@ Humidity:
     #FONCTIONS ANALYSE SPECTRALE
     
     def run_spectral_analysis(self):
-        #Exécute l'analyse spectrale
+        """Run FFT analysis and display power spectrum"""
         if self.data is None:
             messagebox.showwarning("Warning", "No data loaded")
             return
         
-        var = self.spectral_var.get()
-        spectral_type = self.spectral_type.get()
-        
-        var_selected = self.spectral_var.get()
-        var_fft = self.COLUMN_MAP[var_selected]
-        signal = self.data[var_fft].dropna().values
-
-        
-        self.spectral_fig.clear()
-        
-        if spectral_type == 'FFT':
+        try:
+            var_selected = self.spectral_var.get()
+            var_fft = self.COLUMN_MAP[var_selected]
+            signal = self.data[var_fft].dropna().values
+            
+            if len(signal) < 10:
+                messagebox.showwarning("Warning", "Not enough data points for analysis")
+                return
+            
+            # Remove mean (DC component)
+            signal = signal - np.mean(signal)
+            
+            self.spectral_fig.clear()
+            
+            # Create 2 subplots: time signal + power spectrum
             ax1 = self.spectral_fig.add_subplot(211)
             ax2 = self.spectral_fig.add_subplot(212)
             
-            #signal
-            ax1.plot(signal[:500], 'b-', linewidth=0.5)
-            ax1.set_title(f'Signal: {var}', fontweight='bold')
-            ax1.set_xlabel('Time (h)')
+            # Plot temporal signal (first 500 points)
+            display_len = min(500, len(signal))
+            ax1.plot(signal[:display_len], 'b-', linewidth=0.8)
+            ax1.set_title(f'Time Signal: {var_selected}', fontweight='bold')
+            ax1.set_xlabel('Time (hours)')
+            ax1.set_ylabel('Value')
             ax1.grid(True, alpha=0.3)
             
-            #FFT
-            n = len(signal)
-            fft_result = fft.fft(signal)
-            frequencies = fft.fftfreq(n, d=1.0)
-            amplitudes = np.abs(fft_result) * 2 / n
+            # Compute Power Spectrum using Welch method
+            nperseg = min(256, len(signal)//4)
+            if nperseg < 4:
+                nperseg = len(signal)
+                
+            frequencies, power = welch(signal, fs=1.0, nperseg=nperseg)
             
-            mask = frequencies > 0
-            ax2.plot(frequencies[mask][:n//4], amplitudes[mask][:n//4], 'r-', linewidth=0.5)
-            ax2.set_title('FFT Spectrum', fontweight='bold')
+            # Plot Power Spectrum
+            ax2.semilogy(frequencies, power, 'r-', linewidth=1)
+            ax2.axvline(x=1/24, color='green', linestyle='--', alpha=0.7, label='Daily (24h)')
+            ax2.axvline(x=1/168, color='orange', linestyle='--', alpha=0.7, label='Weekly (168h)')
+            ax2.set_title(f'Power Spectrum: {var_selected}', fontweight='bold')
             ax2.set_xlabel('Frequency (Hz)')
-            ax2.set_ylabel('Amplitude')
-            ax2.grid(True, alpha=0.3)
+            ax2.set_ylabel('Power Spectral Density')
+            ax2.legend(loc='upper right')
+            ax2.grid(True, alpha=0.3, which='both')
             
-        else:  #Welch ou Periodogramme
-            ax = self.spectral_fig.add_subplot(111)
-            
-            frequencies, power = welch(signal, fs=1.0, nperseg=min(256, len(signal)//4))
-            
-            ax.semilogy(frequencies, power, 'b-', linewidth=1)
-            ax.axvline(x=1/24, color='r', linestyle='--', alpha=0.7, label='24h')
-            ax.axvline(x=1/12, color='g', linestyle='--', alpha=0.7, label='12h')
-            ax.set_title(f'Power Spectrum: {var}', fontweight='bold')
-            ax.set_xlabel('Frequency (Hz)')
-            ax.set_ylabel('Spectral Density')
-            ax.legend()
-            ax.grid(True, alpha=0.3, which='both')
-        
-        self.spectral_fig.tight_layout()
-        self.spectral_canvas.draw()
-        
-        #frréqu dominantes
-        if 'frequencies' in dir() and 'amplitudes' in dir():
-            peak_idx = np.argsort(amplitudes[mask])[-5:][::-1]
-            results = "Dominant Frequencies:\n"
+            # Find and display dominant frequencies
+            peak_idx = np.argsort(power)[-5:][::-1]
+            results = f"FFT Analysis: {var_selected}\n"
+            results += "-" * 25 + "\n"
+            results += "Dominant Frequencies:\n\n"
             for idx in peak_idx:
-                f = frequencies[mask][idx]
+                f = frequencies[idx]
                 if f > 0:
                     period = 1/f
-                    results += f"• {f:.5f} Hz ({period:.1f}h)\n"
+                    results += f"• {f:.5f} Hz\n"
+                    results += f"  Period: {period:.1f}h ({period/24:.1f} days)\n\n"
+            
             self.spectral_results.delete(1.0, tk.END)
             self.spectral_results.insert(tk.END, results)
+            
+            self.spectral_fig.tight_layout()
+            self.spectral_canvas.draw()
+            self.log(f"FFT Analysis completed: {var_selected}")
+            
+        except Exception as e:
+            self.log(f"Error in spectral analysis: {e}")
+            messagebox.showerror("Error", f"Spectral analysis failed: {e}")
+    
+    def apply_spectral_filter(self):
+        """Apply frequency filter and show effect on power spectrum"""
+        from scipy.signal import butter, sosfilt
         
-        self.log(f"Spectral Analysis: {var}")
+        if self.data is None:
+            messagebox.showwarning("Warning", "No data loaded. Run FFT Analysis first.")
+            return
+        
+        filter_type = self.spectral_filter_type.get()
+        
+        try:
+            var_selected = self.spectral_var.get()
+            var_fft = self.COLUMN_MAP[var_selected]
+            signal = self.data[var_fft].dropna().values.copy()
+            
+            if len(signal) < 20:
+                messagebox.showwarning("Warning", "Not enough data points for filtering")
+                return
+            
+            # Remove mean
+            signal = signal - np.mean(signal)
+            
+            fs = 1.0  # Sampling frequency (1 sample per hour)
+            nyq = 0.5 * fs  # Nyquist frequency = 0.5 Hz
+            order = 3  # Filter order
+            
+            if filter_type == 'Low-pass':
+                cutoff = float(self.cutoff_freq.get())
+                if cutoff <= 0 or cutoff >= nyq:
+                    messagebox.showwarning("Warning", f"Cutoff must be between 0 and {nyq} Hz")
+                    return
+                sos = butter(order, cutoff, btype='low', fs=fs, output='sos')
+                filtered_signal = sosfilt(sos, signal)
+                title = f"Low-pass (cutoff={cutoff} Hz)"
+                
+            elif filter_type == 'High-pass':
+                cutoff = float(self.cutoff_freq.get())
+                if cutoff <= 0 or cutoff >= nyq:
+                    messagebox.showwarning("Warning", f"Cutoff must be between 0 and {nyq} Hz")
+                    return
+                sos = butter(order, cutoff, btype='high', fs=fs, output='sos')
+                filtered_signal = sosfilt(sos, signal)
+                title = f"High-pass (cutoff={cutoff} Hz)"
+                
+            elif filter_type == 'Band-pass':
+                low_cut = float(self.low_cutoff.get())
+                high_cut = float(self.high_cutoff.get())
+                if low_cut <= 0 or high_cut >= nyq or low_cut >= high_cut:
+                    messagebox.showwarning("Warning", f"Frequencies must satisfy: 0 < low < high < {nyq}")
+                    return
+                sos = butter(order, [low_cut, high_cut], btype='band', fs=fs, output='sos')
+                filtered_signal = sosfilt(sos, signal)
+                title = f"Band-pass ({low_cut}-{high_cut} Hz)"
+            else:
+                return
+            
+            # Compute power spectra for both signals
+            nperseg = min(256, len(signal)//4)
+            if nperseg < 4:
+                nperseg = len(signal)
+            
+            freq_orig, power_orig = welch(signal, fs=fs, nperseg=nperseg)
+            freq_filt, power_filt = welch(filtered_signal, fs=fs, nperseg=nperseg)
+            
+            # Plot results
+            self.spectral_fig.clear()
+            ax1 = self.spectral_fig.add_subplot(211)
+            ax2 = self.spectral_fig.add_subplot(212)
+            
+            # Time domain comparison
+            display_len = min(500, len(signal))
+            ax1.plot(signal[:display_len], 'b-', linewidth=0.5, alpha=0.5, label='Original')
+            ax1.plot(filtered_signal[:display_len], 'r-', linewidth=1, label='Filtered')
+            ax1.set_title(f'Time Signal: {title}', fontweight='bold')
+            ax1.set_xlabel('Time (hours)')
+            ax1.set_ylabel('Value')
+            ax1.legend(loc='upper right')
+            ax1.grid(True, alpha=0.3)
+            
+            # Frequency domain comparison (Power Spectrum)
+            ax2.semilogy(freq_orig, power_orig, 'b-', linewidth=0.8, alpha=0.5, label='Original')
+            ax2.semilogy(freq_filt, power_filt, 'r-', linewidth=1.5, label='Filtered')
+            ax2.set_title(f'Power Spectrum: {title}', fontweight='bold')
+            ax2.set_xlabel('Frequency (Hz)')
+            ax2.set_ylabel('Power Spectral Density')
+            ax2.legend(loc='upper right')
+            ax2.grid(True, alpha=0.3, which='both')
+            
+            self.spectral_fig.tight_layout()
+            self.spectral_canvas.draw()
+            
+            # Update results text
+            self.spectral_results.delete(1.0, tk.END)
+            self.spectral_results.insert(tk.END, f"Filter Applied:\n{title}\n\n")
+            self.spectral_results.insert(tk.END, f"Original std: {np.std(signal):.2f}\n")
+            self.spectral_results.insert(tk.END, f"Filtered std: {np.std(filtered_signal):.2f}\n\n")
+            self.spectral_results.insert(tk.END, "Tip: Compare blue (original)\nand red (filtered) curves\nto see filter effect.")
+            
+            self.log(f"Filter Applied: {title}")
+            
+        except ValueError as ve:
+            self.log(f"Value error: {ve}")
+            messagebox.showerror("Error", f"Invalid frequency value: {ve}")
+        except Exception as e:
+            self.log(f"Error applying filter: {e}")
+            messagebox.showerror("Error", f"Failed to apply filter: {e}")
     
     def save_spectral_results(self):
         #Sauvegarde les résultats spectraux
         try:
+            var_selected = self.spectral_var.get()
+            var_column = self.COLUMN_MAP[var_selected]
             analyzer = SpectralAnalyzer()
             analyzer.load_data()
-            analyzer.store_spectral_results(self.spectral_var.get())
+            analyzer.store_spectral_results(var_column)
             self.log("Spectral Results Saved")
             messagebox.showinfo("Success", "Results Saved!")
         except Exception as e:
             self.log(f"Error: {str(e)}")
+            messagebox.showerror("Error", f"Failed to save: {str(e)}")
     
     #FONCTIONS IMAGES
     
@@ -1170,10 +1461,11 @@ Humidity:
             "Version 1.0\n"
             "Date: December 31, 2025\n\n"
             "Features::\n"
-            "• SQLite database management\n"
+            "• MySQL database management\n"
             "• Data loading and filtering\n"
             "• Correlation analysis\n"
             "• Spectral Analysis (FFT)\n"
+            "• Spectral Filters (Low/High/Band-pass)\n"
             "• Image Processing\n"
             "• Data Visualization\n"
         )

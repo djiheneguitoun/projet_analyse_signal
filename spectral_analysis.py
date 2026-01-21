@@ -22,7 +22,7 @@ from data_processing import DataProcessor
 
 class SpectralAnalyzer:
     
-    def __init__(self, db_path="air_quality.db"):
+    def __init__(self, db_path="db_air_quality"):
 
         self.db = AirQualityDatabase(db_path)
         self.data = None
@@ -139,14 +139,14 @@ class SpectralAnalyzer:
         
         #supprimer les anciens résultats pour cette variable
         self.db.cursor.execute(
-            "DELETE FROM spectral_analysis WHERE variable_name = ?", (column,)
+            "DELETE FROM spectral_analysis WHERE variable_name = %s", (column,)
         )
         
         #insérer les nouveaux résultats
         self.db.cursor.execute('''
             INSERT INTO spectral_analysis 
             (variable_name, dominant_frequency, power_spectrum_data)
-            VALUES (?, ?, ?)
+            VALUES (%s, %s, %s)
         ''', (column, float(dominant_freq), str(spectrum_data)))
         
         self.db.connection.commit()

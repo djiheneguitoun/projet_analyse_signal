@@ -20,7 +20,7 @@ from database_integration import AirQualityDatabase
 
 class ImageProcessor:
     
-    def __init__(self, db_path="air_quality.db"):
+    def __init__(self, db_path="db_air_quality"):
        
         self.db = AirQualityDatabase(db_path)
         self.image = None
@@ -52,7 +52,7 @@ class ImageProcessor:
         """
         self.db.connect()
         self.db.cursor.execute(
-            "SELECT file_path FROM image_metadata WHERE filename = ?", (filename,)
+            "SELECT file_path FROM image_metadata WHERE filename = %s", (filename,)
     )
         result = self.db.cursor.fetchone()
         self.db.disconnect()
@@ -260,7 +260,7 @@ class ImageProcessor:
         
         #vérifier si l'image existe déjà
         self.db.cursor.execute(
-            "SELECT id FROM image_metadata WHERE filename = ?", (filename,)
+            "SELECT id FROM image_metadata WHERE filename = %s", (filename,)
         )
         existing = self.db.cursor.fetchone()
         
@@ -268,15 +268,15 @@ class ImageProcessor:
             #mettre à jour
             self.db.cursor.execute('''
                 UPDATE image_metadata 
-                SET processing_methods = ?, updated_at = CURRENT_TIMESTAMP
-                WHERE filename = ?
+                SET processing_methods = %s, updated_at = CURRENT_TIMESTAMP
+                WHERE filename = %s
             ''', (methods, filename))
         else:
             # Insérer
             self.db.cursor.execute('''
                 INSERT INTO image_metadata 
                 (filename, file_path, file_size, width, height, processing_methods)
-                VALUES (?, ?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s, %s)
             ''', (filename, self.image_path, file_size, width, height, methods))
         
         self.db.connection.commit()

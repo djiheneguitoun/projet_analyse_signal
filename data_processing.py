@@ -21,7 +21,7 @@ import matplotlib.pyplot as plt
 class DataProcessor:
     #classe pour le chargement et filtrage des données
     
-    def __init__(self, db_path="air_quality.db"):
+    def __init__(self, db_path="db_air_quality"):
 
         self.db = AirQualityDatabase(db_path)
         self.data = None
@@ -192,10 +192,13 @@ class DataProcessor:
                     INSERT INTO air_quality_measurements 
                     (date, time, co_gt, no2_gt, 
                      temperature, humidity)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    VALUES (%s, %s, %s, %s, %s, %s)
                 ''', (
-                    row.get('date'), row.get('time'), row.get('co_gt'),
-                    row.get('no2_gt'), row.get('temperature'), row.get('humidity')
+                    row.get('date'), row.get('time'), 
+                    None if pd.isna(row.get('co_gt')) else row.get('co_gt'),
+                    None if pd.isna(row.get('no2_gt')) else row.get('no2_gt'),
+                    None if pd.isna(row.get('temperature')) else row.get('temperature'),
+                    None if pd.isna(row.get('humidity')) else row.get('humidity')
                 ))
                 count += 1
             except Exception as e:

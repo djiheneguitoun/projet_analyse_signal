@@ -1,7 +1,7 @@
 """
 Partie 1: Intégration de la Base de Données
 ============================================
-Ce module gère la création et la manipulation de la base de données SQLite
+Ce module gère la création et la manipulation de la base de données MySQL
 pour stocker les mesures de qualité de l'air.
 
 Fonctionnalités:
@@ -12,26 +12,48 @@ Fonctionnalités:
 - Suppression des enregistrements
 """
 
-import sqlite3
+import mysql.connector
 import pandas as pd
 import os
 from datetime import datetime
 
 
 class AirQualityDatabase:
-    #classe pour gérer la base de données 
+    #classe pour gérer la base de données MySQL
     
-    def __init__(self, db_path="air_quality.db"):
-
-        self.db_path = db_path
+    def __init__(self, db_path="db_air_quality"):
+        self.db_name = db_path if db_path != "air_quality.db" else "db_air_quality"
+        self.host = "localhost"
+        self.user = "root"
+        self.password = ""
         self.connection = None
         self.cursor = None
     
     def connect(self):
-        #Établit la connexion à la base de données
-        self.connection = sqlite3.connect(self.db_path)
-        self.cursor = self.connection.cursor()
-        print(f"Database Connection Established: {self.db_path}")
+        #Établit la connexion à la base de données MySQL
+        try:
+            # First connect without database to create it if needed
+            temp_conn = mysql.connector.connect(
+                host=self.host,
+                user=self.user,
+                password=self.password
+            )
+            temp_cursor = temp_conn.cursor()
+            temp_cursor.execute(f"CREATE DATABASE IF NOT EXISTS {self.db_name}")
+            temp_conn.close()
+            
+            # Now connect to the specific database
+            self.connection = mysql.connector.connect(
+                host=self.host,
+                user=self.user,
+                password=self.password,
+                database=self.db_name
+            )
+            self.cursor = self.connection.cursor()
+            print(f"Database Connection Established: {self.db_name}")
+        except mysql.connector.Error as err:
+            print(f"MySQL Error: {err}")
+            raise
     
     def disconnect(self):
         #ferme la connexion à la base de données
@@ -44,13 +66,13 @@ class AirQualityDatabase:
         #table principale pour les mesures de qualité de l'air
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS air_quality_measurements (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                date TEXT NOT NULL,
-                time TEXT NOT NULL,
-                co_gt REAL,
-                no2_gt REAL,
-                temperature REAL,
-                humidity REAL,
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                date VARCHAR(20) NOT NULL,
+                time VARCHAR(20) NOT NULL,
+                co_gt FLOAT,
+                no2_gt FLOAT,
+                temperature FLOAT,
+                humidity FLOAT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
@@ -58,23 +80,23 @@ class AirQualityDatabase:
         #table pour les métadonnées des images
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS image_metadata (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                filename TEXT NOT NULL,
-                file_path TEXT,
-                file_size INTEGER,
-                width INTEGER,
-                height INTEGER,
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                filename VARCHAR(255) NOT NULL,
+                file_path VARCHAR(500),
+                file_size INT,
+                width INT,
+                height INT,
                 processing_methods TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             )
         ''')
         
         # Table des images
         self.cursor.execute("""
             CREATE TABLE IF NOT EXISTS images (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                image_path TEXT NOT NULL,
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                image_path VARCHAR(500) NOT NULL,
                 metadata TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -85,11 +107,11 @@ class AirQualityDatabase:
         #table pour stocker les résultats de corrélation
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS correlation_results (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                variable1 TEXT NOT NULL,
-                variable2 TEXT NOT NULL,
-                correlation_coefficient REAL,
-                correlation_type TEXT,
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                variable1 VARCHAR(100) NOT NULL,
+                variable2 VARCHAR(100) NOT NULL,
+                correlation_coefficient FLOAT,
+                correlation_type VARCHAR(50),
                 calculated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
@@ -97,9 +119,9 @@ class AirQualityDatabase:
         #table pr stocker resultst d'analyse spectrale
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS spectral_analysis (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                variable_name TEXT NOT NULL,
-                dominant_frequency REAL,
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                variable_name VARCHAR(100) NOT NULL,
+                dominant_frequency FLOAT,
                 power_spectrum_data TEXT,
                 analyzed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -138,10 +160,13 @@ class AirQualityDatabase:
                 self.cursor.execute('''
                     INSERT INTO air_quality_measurements 
                     (date, time, co_gt, no2_gt, temperature, humidity)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    VALUES (%s, %s, %s, %s, %s, %s)
                 ''', (
-                    row.get('date'), row.get('time'), row.get('co_gt'),
-                    row.get('no2_gt'), row.get('temperature'), row.get('humidity')
+                    row.get('date'), row.get('time'), 
+                    None if pd.isna(row.get('co_gt')) else row.get('co_gt'),
+                    None if pd.isna(row.get('no2_gt')) else row.get('no2_gt'),
+                    None if pd.isna(row.get('temperature')) else row.get('temperature'),
+                    None if pd.isna(row.get('humidity')) else row.get('humidity')
                 ))
                 count += 1
             except Exception as e:
@@ -160,7 +185,7 @@ class AirQualityDatabase:
             INSERT INTO air_quality_measurements 
             (date, time, co_gt, no2_gt, 
              temperature, humidity)
-            VALUES (?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s)
         ''', (date, time, co_gt, no2_gt,
               temperature, humidity))
         self.connection.commit()
@@ -181,12 +206,12 @@ class AirQualityDatabase:
         if end_date:
             self.cursor.execute('''
                 SELECT * FROM air_quality_measurements 
-                WHERE date >= ? AND date <= ?
+                WHERE date >= %s AND date <= %s
             ''', (start_date, end_date))
         else:
             self.cursor.execute('''
                 SELECT * FROM air_quality_measurements 
-                WHERE date = ?
+                WHERE date = %s
             ''', (start_date,))
         return self.cursor.fetchall()
     
@@ -201,17 +226,17 @@ class AirQualityDatabase:
         if min_value is not None and max_value is not None:
             self.cursor.execute(f'''
                 SELECT * FROM air_quality_measurements 
-                WHERE {column} >= ? AND {column} <= ?
+                WHERE {column} >= %s AND {column} <= %s
             ''', (min_value, max_value))
         elif min_value is not None:
             self.cursor.execute(f'''
                 SELECT * FROM air_quality_measurements 
-                WHERE {column} >= ?
+                WHERE {column} >= %s
             ''', (min_value,))
         elif max_value is not None:
             self.cursor.execute(f'''
                 SELECT * FROM air_quality_measurements 
-                WHERE {column} <= ?
+                WHERE {column} <= %s
             ''', (max_value,))
         
         return self.cursor.fetchall()
@@ -222,13 +247,13 @@ class AirQualityDatabase:
             print("No Data to Update.")
             return False
         
-        set_clause = ", ".join([f"{k} = ?" for k in kwargs.keys()])
+        set_clause = ", ".join([f"{k} = %s" for k in kwargs.keys()])
         values = list(kwargs.values()) + [record_id]
         
         self.cursor.execute(f'''
             UPDATE air_quality_measurements 
             SET {set_clause}
-            WHERE id = ?
+            WHERE id = %s
         ''', values)
         self.connection.commit()
         print(f"Record {record_id} Updated.")
@@ -237,7 +262,7 @@ class AirQualityDatabase:
     def delete_measurement(self, record_id):
 
         self.cursor.execute('''
-            DELETE FROM air_quality_measurements WHERE id = ?
+            DELETE FROM air_quality_measurements WHERE id = %s
         ''', (record_id,))
         self.connection.commit()
         print(f"Record {record_id} Deleted.")
@@ -283,7 +308,7 @@ def test_database_operations():
     print("=" * 60)
     
     #initialisation
-    db = AirQualityDatabase("air_quality.db")
+    db = AirQualityDatabase("db_air_quality")
     db.connect()
     
     #création tables
