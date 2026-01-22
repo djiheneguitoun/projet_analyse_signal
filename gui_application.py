@@ -750,24 +750,25 @@ class EnvironmentalDataGUI:
         
         # === SECTION 1: Variable Selection ===
         ttk.Label(left_frame, text="1. Select Variable", font=('Helvetica', 10, 'bold')).pack(anchor=tk.W)
-        ttk.Label(left_frame, text="Choose the time series to analyze:").pack(anchor=tk.W, pady=(2, 5))
         self.spectral_var = ttk.Combobox(left_frame, values=self.display_columns, state='readonly', width=20)
         self.spectral_var.set(self.display_columns[0])
         self.spectral_var.pack(fill=tk.X, pady=(0, 10))
         
-        # === SECTION 2: FFT Analysis ===
+        # === SECTION 2: Frequency Representation Type ===
         ttk.Separator(left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=5)
-        ttk.Label(left_frame, text="2. FFT Analysis", font=('Helvetica', 10, 'bold')).pack(anchor=tk.W, pady=(5, 5))
-        ttk.Button(left_frame, text="▶ Run FFT Analysis", command=self.run_spectral_analysis).pack(fill=tk.X, pady=5)
+        ttk.Label(left_frame, text="2. Representation Type", font=('Helvetica', 10, 'bold')).pack(anchor=tk.W, pady=(5, 5))
+        self.spectral_repr_type = ttk.Combobox(left_frame, values=['FFT Amplitude', 'Power Spectrum'], state='readonly', width=20)
+        self.spectral_repr_type.set('Power Spectrum')
+        self.spectral_repr_type.pack(fill=tk.X, pady=(0, 10))
         
         # === SECTION 3: Frequency Filters ===
-        ttk.Separator(left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
-        ttk.Label(left_frame, text="3. Apply Filter (optional)", font=('Helvetica', 10, 'bold')).pack(anchor=tk.W)
-        ttk.Label(left_frame, text="Filter the frequency signal:").pack(anchor=tk.W, pady=(2, 5))
+        ttk.Separator(left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=5)
+        ttk.Label(left_frame, text="3. Frequency Filters (optional)", font=('Helvetica', 10, 'bold')).pack(anchor=tk.W, pady=(5, 5))
         
         # Filter type
-        self.spectral_filter_type = ttk.Combobox(left_frame, values=['Low-pass', 'High-pass', 'Band-pass'], state='readonly', width=20)
-        self.spectral_filter_type.set('Low-pass')
+        # Added 'Band-stop' (coupe-bande) option
+        self.spectral_filter_type = ttk.Combobox(left_frame, values=['No Filter', 'Low-pass', 'High-pass', 'Band-pass', 'Band-stop'], state='readonly', width=20)
+        self.spectral_filter_type.set('No Filter')
         self.spectral_filter_type.pack(fill=tk.X, pady=5)
         self.spectral_filter_type.bind('<<ComboboxSelected>>', self._update_filter_fields)
         
@@ -794,21 +795,25 @@ class EnvironmentalDataGUI:
         self.high_cutoff.insert(0, "0.1")
         self.high_cutoff.grid(row=1, column=1, padx=5, pady=2)
         
-        ttk.Button(left_frame, text="Apply Filter", command=self.apply_spectral_filter).pack(fill=tk.X, pady=5)
+        # === SECTION 4: Analysis ===
+        ttk.Separator(left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
+        ttk.Label(left_frame, text="4. Run Analysis", font=('Helvetica', 10, 'bold')).pack(anchor=tk.W, pady=(5, 5))
+        ttk.Button(left_frame, text="▶ Run Analysis", command=self.run_spectral_analysis).pack(fill=tk.X, pady=5)
         
         # === Results Section ===
         ttk.Separator(left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
         ttk.Label(left_frame, text="Results", font=('Helvetica', 10, 'bold')).pack(anchor=tk.W)
-        self.spectral_results = scrolledtext.ScrolledText(left_frame, height=8, width=25, font=('Consolas', 9))
+        self.spectral_results = scrolledtext.ScrolledText(left_frame, height=6, width=25, font=('Consolas', 9))
         self.spectral_results.pack(fill=tk.X, pady=5)
         
         ttk.Button(left_frame, text="Save to Database", command=self.save_spectral_results).pack(fill=tk.X, pady=10)
         
         # === Right Frame - Spectrum Plot ===
-        right_frame = ttk.LabelFrame(tab, text="Power Spectrum", padding=10)
+        right_frame = ttk.LabelFrame(tab, text="Frequency Analysis", padding=10)
         right_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
-        self.spectral_fig = Figure(figsize=(8, 6), dpi=100)
+        # Reduce figure size so left controls/buttons remain visible on small windows
+        self.spectral_fig = Figure(figsize=(6, 4), dpi=100)
         self.spectral_canvas = FigureCanvasTkAgg(self.spectral_fig, right_frame)
         self.spectral_canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
         
@@ -825,9 +830,13 @@ class EnvironmentalDataGUI:
         self.bandpass_frame.pack_forget()
         
         # Show appropriate frame
-        if filter_type in ['Low-pass', 'High-pass']:
+        if filter_type == 'No Filter':
+            # No parameters needed
+            pass
+        elif filter_type in ['Low-pass', 'High-pass']:
             self.cutoff_frame.pack(fill=tk.X)
-        elif filter_type == 'Band-pass':
+        elif filter_type in ['Band-pass', 'Band-stop']:
+            # Show two fields for low and high cutoff (used by band-pass and band-stop)
             self.bandpass_frame.pack(fill=tk.X)
     
     #ONGLET 5: TRAITEMENT D'IMAGES
@@ -1506,183 +1515,182 @@ Humidity:
     #FONCTIONS ANALYSE SPECTRALE
     
     def run_spectral_analysis(self):
-        """Run FFT analysis and display power spectrum"""
+        """Run FFT analysis with filters applied BEFORE analysis"""
+        from scipy.signal import butter, sosfilt
+        
         if self.data is None:
             messagebox.showwarning("Warning", "No data loaded")
             return
         
         try:
             var_selected = self.spectral_var.get()
+            repr_type = self.spectral_repr_type.get()
             var_fft = self.COLUMN_MAP[var_selected]
-            signal = self.data[var_fft].dropna().values
+            signal_original = self.data[var_fft].dropna().values.copy()
+            signal_filtered = signal_original.copy()
             
-            if len(signal) < 10:
+            if len(signal_original) < 10:
                 messagebox.showwarning("Warning", "Not enough data points for analysis")
                 return
             
             # Remove mean (DC component)
-            signal = signal - np.mean(signal)
+            signal_original = signal_original - np.mean(signal_original)
+            signal_filtered = signal_filtered - np.mean(signal_filtered)
             
+            # ============ APPLY FILTERS BEFORE ANALYSIS ============
+            filter_info = ""
+            filter_type = self.spectral_filter_type.get()
+            show_comparison = False
+            
+            fs = 1.0  # Sampling frequency (1 sample per hour)
+            nyq = 0.5 * fs  # Nyquist frequency
+            order = 3
+            
+            try:
+                if filter_type == 'No Filter':
+                    # No filtering applied
+                    filter_info = ""
+                    signal_filtered = signal_original.copy()
+                    
+                elif filter_type == 'Low-pass':
+                    cutoff = float(self.cutoff_freq.get())
+                    if cutoff <= 0 or cutoff >= nyq:
+                        messagebox.showwarning("Warning", f"Cutoff must be between 0 and {nyq} Hz")
+                        return
+                    sos = butter(order, cutoff, btype='low', fs=fs, output='sos')
+                    signal_filtered = sosfilt(sos, signal_filtered)
+                    filter_info = f" + Low-pass ({cutoff} Hz)"
+                    show_comparison = True
+                    
+                elif filter_type == 'High-pass':
+                    cutoff = float(self.cutoff_freq.get())
+                    if cutoff <= 0 or cutoff >= nyq:
+                        messagebox.showwarning("Warning", f"Cutoff must be between 0 and {nyq} Hz")
+                        return
+                    sos = butter(order, cutoff, btype='high', fs=fs, output='sos')
+                    signal_filtered = sosfilt(sos, signal_filtered)
+                    filter_info = f" + High-pass ({cutoff} Hz)"
+                    show_comparison = True
+                    
+                elif filter_type == 'Band-pass':
+                    low_cut = float(self.low_cutoff.get())
+                    high_cut = float(self.high_cutoff.get())
+                    if low_cut <= 0 or high_cut >= nyq or low_cut >= high_cut:
+                        messagebox.showwarning("Warning", f"Frequencies must satisfy: 0 < low < high < {nyq}")
+                        return
+                    sos = butter(order, [low_cut, high_cut], btype='band', fs=fs, output='sos')
+                    signal_filtered = sosfilt(sos, signal_filtered)
+                    filter_info = f" + Band-pass ({low_cut}-{high_cut} Hz)"
+                    show_comparison = True
+                elif filter_type == 'Band-stop':
+                    # Coupe-bande: remove frequencies between low_cut and high_cut
+                    low_cut = float(self.low_cutoff.get())
+                    high_cut = float(self.high_cutoff.get())
+                    if low_cut <= 0 or high_cut >= nyq or low_cut >= high_cut:
+                        messagebox.showwarning("Warning", f"Frequencies must satisfy: 0 < low < high < {nyq}")
+                        return
+                    sos = butter(order, [low_cut, high_cut], btype='bandstop', fs=fs, output='sos')
+                    signal_filtered = sosfilt(sos, signal_filtered)
+                    filter_info = f" + Band-stop ({low_cut}-{high_cut} Hz)"
+                    show_comparison = True
+            except ValueError as e:
+                messagebox.showerror("Error", f"Invalid filter parameters: {e}")
+                return
+            
+            # Use filtered signal for analysis
+            signal = signal_filtered
+            
+            # ============ SPECTRAL ANALYSIS ON FILTERED SIGNAL ============
             self.spectral_fig.clear()
             
-            # Create 2 subplots: time signal + power spectrum
+            # Create 2 subplots: time signal + frequency representation
             ax1 = self.spectral_fig.add_subplot(211)
             ax2 = self.spectral_fig.add_subplot(212)
             
-            # Plot temporal signal (first 500 points)
+            # Plot temporal signal with comparison if filter is applied
             display_len = min(500, len(signal))
-            ax1.plot(signal[:display_len], 'b-', linewidth=0.8)
-            ax1.set_title(f'Time Signal: {var_selected}', fontweight='bold')
+            ax1.plot(signal_original[:display_len], 'b-', linewidth=0.7, alpha=0.5, label='Original' if show_comparison else '')
+            ax1.plot(signal_filtered[:display_len], 'r-', linewidth=0.8, label='Filtered' if show_comparison else '')
+            ax1.set_title(f'Time Signal: {var_selected}{filter_info}', fontweight='bold')
             ax1.set_xlabel('Time (hours)')
             ax1.set_ylabel('Value')
+            if show_comparison:
+                ax1.legend(loc='upper right')
             ax1.grid(True, alpha=0.3)
             
-            # Compute Power Spectrum using Welch method
-            nperseg = min(256, len(signal)//4)
-            if nperseg < 4:
-                nperseg = len(signal)
+            # Choose representation type
+            if repr_type == 'FFT Amplitude':
+                # ===== FFT AMPLITUDE =====
+                n = len(signal)
+                fft_result = fft.fft(signal)
+                frequencies = fft.fftfreq(n, d=1.0)
+                positive_mask = frequencies >= 0
+                frequencies = frequencies[positive_mask]
+                amplitudes = np.abs(fft_result[positive_mask]) * 2 / n
                 
-            frequencies, power = welch(signal, fs=1.0, nperseg=nperseg)
-            
-            # Plot Power Spectrum
-            ax2.semilogy(frequencies, power, 'r-', linewidth=1)
-            ax2.axvline(x=1/24, color='green', linestyle='--', alpha=0.7, label='Daily (24h)')
-            ax2.axvline(x=1/168, color='orange', linestyle='--', alpha=0.7, label='Weekly (168h)')
-            ax2.set_title(f'Power Spectrum: {var_selected}', fontweight='bold')
-            ax2.set_xlabel('Frequency (Hz)')
-            ax2.set_ylabel('Power Spectral Density')
-            ax2.legend(loc='upper right')
-            ax2.grid(True, alpha=0.3, which='both')
-            
-            # Find and display dominant frequencies
-            peak_idx = np.argsort(power)[-5:][::-1]
-            results = f"FFT Analysis: {var_selected}\n"
-            results += "-" * 25 + "\n"
-            results += "Dominant Frequencies:\n\n"
-            for idx in peak_idx:
-                f = frequencies[idx]
-                if f > 0:
-                    period = 1/f
-                    results += f"• {f:.5f} Hz\n"
-                    results += f"  Period: {period:.1f}h ({period/24:.1f} days)\n\n"
+                # Plot FFT Amplitude
+                plot_limit = len(frequencies) // 2
+                ax2.plot(frequencies[:plot_limit], amplitudes[:plot_limit], 'r-', linewidth=1)
+                ax2.axvline(x=1/24, color='green', linestyle='--', alpha=0.7, label='Daily (24h)')
+                ax2.axvline(x=1/168, color='orange', linestyle='--', alpha=0.7, label='Weekly (168h)')
+                ax2.set_title(f'FFT Amplitude: {var_selected}{filter_info}', fontweight='bold')
+                ax2.set_xlabel('Frequency (Hz)')
+                ax2.set_ylabel('Amplitude')
+                ax2.legend(loc='upper right')
+                ax2.grid(True, alpha=0.3)
+                
+                # Find dominant frequencies
+                peak_idx = np.argsort(amplitudes[:plot_limit])[-5:][::-1]
+                results = f"FFT Amplitude Analysis: {var_selected}{filter_info}\n"
+                results += "-" * 40 + "\n"
+                results += "Dominant Frequencies:\n\n"
+                for idx in peak_idx:
+                    f = frequencies[idx]
+                    if f > 0:
+                        period = 1/f
+                        results += f"• {f:.5f} Hz - Amplitude: {amplitudes[idx]:.4f}\n"
+                        results += f"  Period: {period:.1f}h\n\n"
+                        
+            else:  # Power Spectrum
+                # ===== POWER SPECTRUM =====
+                nperseg = min(256, len(signal)//4)
+                if nperseg < 4:
+                    nperseg = len(signal)
+                    
+                frequencies, power = welch(signal, fs=1.0, nperseg=nperseg)
+                
+                # Plot Power Spectrum
+                ax2.semilogy(frequencies, power, 'r-', linewidth=1)
+                ax2.axvline(x=1/24, color='green', linestyle='--', alpha=0.7, label='Daily (24h)')
+                ax2.axvline(x=1/168, color='orange', linestyle='--', alpha=0.7, label='Weekly (168h)')
+                ax2.set_title(f'Power Spectrum: {var_selected}{filter_info}', fontweight='bold')
+                ax2.set_xlabel('Frequency (Hz)')
+                ax2.set_ylabel('Power Spectral Density')
+                ax2.legend(loc='upper right')
+                ax2.grid(True, alpha=0.3, which='both')
+                
+                # Find dominant frequencies
+                peak_idx = np.argsort(power)[-5:][::-1]
+                results = f"Power Spectrum Analysis: {var_selected}{filter_info}\n"
+                results += "-" * 40 + "\n"
+                results += "Dominant Frequencies:\n\n"
+                for idx in peak_idx:
+                    f = frequencies[idx]
+                    if f > 0:
+                        period = 1/f
+                        results += f"• {f:.5f} Hz - Power: {power[idx]:.4e}\n"
+                        results += f"  Period: {period:.1f}h\n\n"
             
             self.spectral_results.delete(1.0, tk.END)
             self.spectral_results.insert(tk.END, results)
             
             self.spectral_fig.tight_layout()
             self.spectral_canvas.draw()
-            self.log(f"FFT Analysis completed: {var_selected}")
+            self.log(f"Spectral Analysis ({repr_type}): {var_selected}{filter_info}")
             
         except Exception as e:
             self.log(f"Error in spectral analysis: {e}")
             messagebox.showerror("Error", f"Spectral analysis failed: {e}")
-    
-    def apply_spectral_filter(self):
-        """Apply frequency filter and show effect on power spectrum"""
-        from scipy.signal import butter, sosfilt
-        
-        if self.data is None:
-            messagebox.showwarning("Warning", "No data loaded. Run FFT Analysis first.")
-            return
-        
-        filter_type = self.spectral_filter_type.get()
-        
-        try:
-            var_selected = self.spectral_var.get()
-            var_fft = self.COLUMN_MAP[var_selected]
-            signal = self.data[var_fft].dropna().values.copy()
-            
-            if len(signal) < 20:
-                messagebox.showwarning("Warning", "Not enough data points for filtering")
-                return
-            
-            # Remove mean
-            signal = signal - np.mean(signal)
-            
-            fs = 1.0  # Sampling frequency (1 sample per hour)
-            nyq = 0.5 * fs  # Nyquist frequency = 0.5 Hz
-            order = 3  # Filter order
-            
-            if filter_type == 'Low-pass':
-                cutoff = float(self.cutoff_freq.get())
-                if cutoff <= 0 or cutoff >= nyq:
-                    messagebox.showwarning("Warning", f"Cutoff must be between 0 and {nyq} Hz")
-                    return
-                sos = butter(order, cutoff, btype='low', fs=fs, output='sos')
-                filtered_signal = sosfilt(sos, signal)
-                title = f"Low-pass (cutoff={cutoff} Hz)"
-                
-            elif filter_type == 'High-pass':
-                cutoff = float(self.cutoff_freq.get())
-                if cutoff <= 0 or cutoff >= nyq:
-                    messagebox.showwarning("Warning", f"Cutoff must be between 0 and {nyq} Hz")
-                    return
-                sos = butter(order, cutoff, btype='high', fs=fs, output='sos')
-                filtered_signal = sosfilt(sos, signal)
-                title = f"High-pass (cutoff={cutoff} Hz)"
-                
-            elif filter_type == 'Band-pass':
-                low_cut = float(self.low_cutoff.get())
-                high_cut = float(self.high_cutoff.get())
-                if low_cut <= 0 or high_cut >= nyq or low_cut >= high_cut:
-                    messagebox.showwarning("Warning", f"Frequencies must satisfy: 0 < low < high < {nyq}")
-                    return
-                sos = butter(order, [low_cut, high_cut], btype='band', fs=fs, output='sos')
-                filtered_signal = sosfilt(sos, signal)
-                title = f"Band-pass ({low_cut}-{high_cut} Hz)"
-            else:
-                return
-            
-            # Compute power spectra for both signals
-            nperseg = min(256, len(signal)//4)
-            if nperseg < 4:
-                nperseg = len(signal)
-            
-            freq_orig, power_orig = welch(signal, fs=fs, nperseg=nperseg)
-            freq_filt, power_filt = welch(filtered_signal, fs=fs, nperseg=nperseg)
-            
-            # Plot results
-            self.spectral_fig.clear()
-            ax1 = self.spectral_fig.add_subplot(211)
-            ax2 = self.spectral_fig.add_subplot(212)
-            
-            # Time domain comparison
-            display_len = min(500, len(signal))
-            ax1.plot(signal[:display_len], 'b-', linewidth=0.5, alpha=0.5, label='Original')
-            ax1.plot(filtered_signal[:display_len], 'r-', linewidth=1, label='Filtered')
-            ax1.set_title(f'Time Signal: {title}', fontweight='bold')
-            ax1.set_xlabel('Time (hours)')
-            ax1.set_ylabel('Value')
-            ax1.legend(loc='upper right')
-            ax1.grid(True, alpha=0.3)
-            
-            # Frequency domain comparison (Power Spectrum)
-            ax2.semilogy(freq_orig, power_orig, 'b-', linewidth=0.8, alpha=0.5, label='Original')
-            ax2.semilogy(freq_filt, power_filt, 'r-', linewidth=1.5, label='Filtered')
-            ax2.set_title(f'Power Spectrum: {title}', fontweight='bold')
-            ax2.set_xlabel('Frequency (Hz)')
-            ax2.set_ylabel('Power Spectral Density')
-            ax2.legend(loc='upper right')
-            ax2.grid(True, alpha=0.3, which='both')
-            
-            self.spectral_fig.tight_layout()
-            self.spectral_canvas.draw()
-            
-            # Update results text
-            self.spectral_results.delete(1.0, tk.END)
-            self.spectral_results.insert(tk.END, f"Filter Applied:\n{title}\n\n")
-            self.spectral_results.insert(tk.END, f"Original std: {np.std(signal):.2f}\n")
-            self.spectral_results.insert(tk.END, f"Filtered std: {np.std(filtered_signal):.2f}\n\n")
-            self.spectral_results.insert(tk.END, "Tip: Compare blue (original)\nand red (filtered) curves\nto see filter effect.")
-            
-            self.log(f"Filter Applied: {title}")
-            
-        except ValueError as ve:
-            self.log(f"Value error: {ve}")
-            messagebox.showerror("Error", f"Invalid frequency value: {ve}")
-        except Exception as e:
-            self.log(f"Error applying filter: {e}")
-            messagebox.showerror("Error", f"Failed to apply filter: {e}")
     
     def save_spectral_results(self):
         #Sauvegarde les résultats spectraux
