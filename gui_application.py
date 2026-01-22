@@ -660,15 +660,18 @@ class EnvironmentalDataGUI:
         content_frame.grid_rowconfigure(0, weight=1)
 
         # Frame pour le tableau filtré
-        filtered_frame = ttk.LabelFrame(content_frame, text="Filtered Data", padding=10)
+        filtered_frame = ttk.LabelFrame(content_frame, text="Filtered Data Comparison", padding=10)
         filtered_frame.grid(row=0, column=0, sticky='nsew', padx=(0, 5))
 
-        # Créer le Treeview avec les mêmes colonnes que le tableau principal
-        filter_columns = ('ID', 'CO', 'NO2', 'Temperature', 'Humidity')
+        # Créer le Treeview avec colonnes pour original et filtré
+        filter_columns = ('Index', 'Original', 'Filtered')
         self.filtered_tree = ttk.Treeview(filtered_frame, columns=filter_columns, show='headings', height=15)
-        for col in filter_columns:
-            self.filtered_tree.heading(col, text=col)
-            self.filtered_tree.column(col, width=80)
+        self.filtered_tree.heading('Index', text='Index')
+        self.filtered_tree.heading('Original', text='Original Value')
+        self.filtered_tree.heading('Filtered', text='Filtered Value')
+        self.filtered_tree.column('Index', width=80)
+        self.filtered_tree.column('Original', width=120)
+        self.filtered_tree.column('Filtered', width=120)
 
         # Scrollbars
         vsb_f = ttk.Scrollbar(filtered_frame, orient=tk.VERTICAL, command=self.filtered_tree.yview)
@@ -1274,112 +1277,147 @@ Humidity:
     #FONCTIONS FILTRAGE 
     
     def apply_filter(self):
-        #Applique le filtre sélectionné
+        """Applique le filtre sélectionné (Moving Average ou Thresholding)."""
         if self.data is None:
             messagebox.showwarning("Warning", "No data loaded")
             return
         
-        var = self.filter_var.get()
+        var_selected = self.filter_var.get()
         filter_type = self.filter_type.get()
-        window = int(float(self.window_size.get()))
+        df_column = self.COLUMN_MAP[var_selected]
         
+        # Extraire les données originales (sans NaN)
+        original_series = self.data[df_column].dropna()
+        original = original_series.values
+        
+        # Appliquer le filtre selon le type
+        if filter_type == 'Moving Average':
+            # Filtrage par moyenne mobile centrée
+            window = int(float(self.window_size.get()))
+            # Appliquer la moyenne mobile centrée
+            filtered_series = pd.Series(original).rolling(window=window, center=True).mean()
+            # Remplir les valeurs NaN aux extrémités
+            filtered_series = filtered_series.fillna(method='bfill').fillna(method='ffill')
+            filtered = filtered_series.values
+            title = f"Moving Average (window={window})"
+            filter_desc = f"Moyenne mobile avec fenêtre de taille {window}"
+            
+        elif filter_type == 'Threshold Filter':
+            # Filtrage par seuillage
+            try:
+                min_val = float(self.threshold_min.get())
+                max_val = float(self.threshold_max.get())
+            except ValueError:
+                messagebox.showerror("Error", "Veuillez entrer des valeurs numériques valides pour les seuils.")
+                return
+            
+            if min_val >= max_val:
+                messagebox.showerror("Error", "Le seuil minimum doit être inférieur au seuil maximum.")
+                return
+            
+            # Limiter les valeurs aux seuils définis
+            filtered = np.clip(original, min_val, max_val)
+            title = f"Thresholding [{min_val}, {max_val}]"
+            filter_desc = f"Seuillage entre {min_val} et {max_val}"
+        else:
+            messagebox.showwarning("Warning", "Type de filtre non reconnu")
+            return
+        
+        # Stocker les données filtrées pour une utilisation ultérieure
+        self.filtered_data = filtered
+        self.original_data = original
+        
+        # === 1. AFFICHAGE DU TABLEAU COMPARATIF ===
+        # Effacer l'ancien contenu du tableau
+        for item in self.filtered_tree.get_children():
+            self.filtered_tree.delete(item)
+        
+        # Afficher les 200 premières valeurs dans le tableau comparatif
+        display_limit = min(200, len(original))
+        for i in range(display_limit):
+            values = (
+                i,
+                f"{original[i]:.4f}",
+                f"{filtered[i]:.4f}"
+            )
+            self.filtered_tree.insert('', tk.END, values=values)
+        
+        # === 2. AFFICHAGE DU GRAPHIQUE ===
         self.filter_fig.clear()
         ax = self.filter_fig.add_subplot(111)
         
-        var_selected = self.filter_var.get()         
-        df_column = self.COLUMN_MAP[var_selected]  
+        # Tracer les séries (limiter à 500 points pour la lisibilité)
+        plot_limit = min(500, len(original))
+        x_axis = range(plot_limit)
         
-        # Create a working copy of data
-        filtered_data = self.data.copy()
-        original = filtered_data[df_column].dropna().values[:1000]
-
+        # Série originale
+        ax.plot(x_axis, original[:plot_limit], 'b-', linewidth=1.5, alpha=0.6, label='Original')
         
-        #Appliquer le filtre
-        if filter_type == 'Moving Average':
-            filtered = pd.Series(original).rolling(window=window, center=True).mean().fillna(method='bfill').fillna(method='ffill').values
-            title = f"Moving Average (window={window})"
-        elif filter_type == 'Threshold Filter':
-            min_val = float(self.threshold_min.get())
-            max_val = float(self.threshold_max.get())
-            # Filter rows based on threshold
-            mask = (filtered_data[df_column] >= min_val) & (filtered_data[df_column] <= max_val)
-            filtered_data = filtered_data[mask]
-            filtered = np.clip(original, min_val, max_val)
-            title = f"Thresholding [{min_val}, {max_val}]"
-        else:  # Outliers
-            q1, q3 = np.percentile(original, [25, 75])
-            iqr = q3 - q1
-            filtered = np.clip(original, q1 - 1.5*iqr, q3 + 1.5*iqr)
-            title = "Remove Outliers (IQR)"
+        # Série filtrée
+        ax.plot(x_axis, filtered[:plot_limit], 'r-', linewidth=2, alpha=0.8, label='Filtered')
         
-        # Update the filtered_tree with same columns as main table
-        for item in self.filtered_tree.get_children():
-            self.filtered_tree.delete(item)
-
-        # Show filtered data with all columns (same format as main table)
-        for idx, row in filtered_data.head(1000).iterrows():
-            values = (
-                row.get('id', idx),
-                f"{row.get('co_gt', 0):.2f}" if pd.notna(row.get('co_gt')) else '',
-                f"{row.get('no2_gt', 0):.2f}" if pd.notna(row.get('no2_gt')) else '',
-                f"{row.get('temperature', 0):.1f}" if pd.notna(row.get('temperature')) else '',
-                f"{row.get('humidity', 0):.1f}" if pd.notna(row.get('humidity')) else ''
-            )
-            self.filtered_tree.insert('', tk.END, values=values)
-
-        
-        # Simple graph in reduced space
-        ax.plot(original[:200], 'b-', linewidth=0.5, alpha=0.5, label='Original')
-        ax.plot(filtered[:200], 'r-', linewidth=1, label='Filtered')
-        ax.set_title(f'{var}: {title}', fontsize=8, fontweight='bold')
-        ax.legend(fontsize=6)
-        ax.grid(True, alpha=0.3)
+        # Mise en forme du graphique
+        ax.set_xlabel('Index', fontsize=9)
+        ax.set_ylabel(var_selected, fontsize=9)
+        ax.set_title(f'{var_selected}: {title}', fontsize=10, fontweight='bold')
+        ax.legend(loc='best', fontsize=8)
+        ax.grid(True, alpha=0.3, linestyle='--')
         
         self.filter_fig.tight_layout()
         self.filter_canvas.draw()
         
-        self.log(f"Filter Applied: {filter_type} to {var}")
+        self.log(f"Filter Applied: {filter_type} to {var_selected} - {filter_desc}")
     
     def reset_filter(self):
-        #Réinitialise le graphique de filtrage
+        """Réinitialise le graphique de filtrage et le tableau."""
+        # Effacer le graphique
         self.filter_fig.clear()
         self.filter_canvas.draw()
+        
+        # Effacer le tableau
+        for item in self.filtered_tree.get_children():
+            self.filtered_tree.delete(item)
+        
+        # Réinitialiser les données filtrées stockées
+        self.filtered_data = None
+        self.original_data = None
+        
         self.log("Filtering Reset")
         
     def save_filtered_data(self):
+        """Sauvegarde les données filtrées dans la base de données."""
         if self.data is None:
             messagebox.showwarning("Warning", "No data loaded to save")
             return
-    
+        
+        # Vérifier si des données filtrées existent
+        if not hasattr(self, 'filtered_data') or self.filtered_data is None:
+            messagebox.showwarning("Warning", "Please apply a filter first")
+            return
+        
         var_selected = self.filter_var.get()
-        filter_type = self.filter_type.get()
-        window = int(float(self.window_size.get()))
-    
         df_column = self.COLUMN_MAP[var_selected]
-        original = self.data[df_column].dropna().values[:1000]
-    
-    # Appliquer le filtre
-        if filter_type == 'Moving Average':
-            filtered = pd.Series(original).rolling(window=window, center=True).mean().fillna(method='bfill').fillna(method='ffill').values
-        elif filter_type == 'Threshold Filter':
-            min_val = float(self.threshold_min.get())
-            max_val = float(self.threshold_max.get())
-            filtered = np.clip(original, min_val, max_val)
-        else:
-            q1, q3 = np.percentile(original, [25, 75])
-            iqr = q3 - q1
-            filtered = np.clip(original, q1 - 1.5*iqr, q3 + 1.5*iqr)
-    
-    # Mettre à jour le DataFrame
-        self.data.loc[:len(filtered)-1, df_column] = filtered
-    
-    # Sauvegarder dans la base
+        
+        # Créer une nouvelle colonne pour les données filtrées
+        filtered_column_name = f"{df_column}_filtered"
+        
+        # Copier les données filtrées dans le DataFrame
+        # Note: nous devons nous assurer que les longueurs correspondent
+        data_copy = self.data.copy()
+        original_series = data_copy[df_column].dropna()
+        
+        # Créer une série avec les valeurs filtrées alignées sur les indices originaux
+        filtered_series = pd.Series(self.filtered_data, index=original_series.index)
+        data_copy[filtered_column_name] = np.nan
+        data_copy.loc[filtered_series.index, filtered_column_name] = filtered_series.values
+        
+        # Sauvegarder dans la base
         try:
             processor = DataProcessor()
-            processor.cleaned_data = self.data
+            processor.cleaned_data = data_copy
             processor.store_cleaned_data()
-            self.log(f"Filtered data saved to database ({var_selected})")
-            messagebox.showinfo("Success", f"Filtered data for {var_selected} saved to database.")
+            self.log(f"Filtered data saved to database ({var_selected} -> {filtered_column_name})")
+            messagebox.showinfo("Success", f"Filtered data for {var_selected} saved as '{filtered_column_name}' in database.")
         except Exception as e:
             self.log(f"Error saving filtered data: {e}")
             messagebox.showerror("Error", f"Unable to save filtered data: {e}")
