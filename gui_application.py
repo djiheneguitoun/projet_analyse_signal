@@ -10,6 +10,8 @@ from scipy.signal import welch     #calcul DSP
 from scipy import fft
 import cv2
 from PIL import Image, ImageTk
+import os
+import time
 
 # Import des modules du projet
 from database_integration import AirQualityDatabase
@@ -892,6 +894,10 @@ class EnvironmentalDataGUI:
         kernel_frame = ttk.Frame(left_frame)
         kernel_frame.pack(fill=tk.X)
         
+        # Créer le label AVANT le scale pour éviter l'erreur de callback
+        self.blur_kernel_label = ttk.Label(kernel_frame, text="5", width=3)
+        self.current_blur_kernel = 5
+        
         self.blur_kernel = ttk.Scale(
             kernel_frame,
             from_=3,
@@ -900,10 +906,8 @@ class EnvironmentalDataGUI:
             command=self.update_blur_kernel
         )
         self.blur_kernel.set(5)
-        self.current_blur_kernel = 5
         self.blur_kernel.pack(side=tk.LEFT, fill=tk.X, expand=True)
         
-        self.blur_kernel_label = ttk.Label(kernel_frame, text="5", width=3)
         self.blur_kernel_label.pack(side=tk.RIGHT, padx=5)
 
         # Seuils Canny
@@ -1784,24 +1788,114 @@ Humidity:
         except Exception as e:
             self.log(f"Error: {str(e)}")
     def load_image_from_db(self):
+        """Load an image from database with selection dialog showing all available images"""
         try:
             self.db.connect()
-            # Exemple : récupérer le dernier enregistrement d'image
-            result = self.db.cursor.execute("SELECT image_path FROM images ORDER BY id DESC LIMIT 1").fetchone()
+            # Récupérer toutes les images disponibles depuis image_metadata
+            self.db.cursor.execute(
+                "SELECT id, filename, file_path, width, height, processing_methods, created_at FROM image_metadata ORDER BY created_at DESC"
+            )
+            results = self.db.cursor.fetchall()
             self.db.disconnect()
 
-            if result:
-                file_path = result[0]  # chemin stocké dans la DB
-                self.image_processor.load_image(file_path)
-                self.original_image = self.image_processor.original_image.copy()
-                self.current_image = self.original_image.copy()
-                self.display_images()
-                self.log(f"Image Loaded from DB: {file_path}")
-            else:
-                messagebox.showinfo("Info", "No image found in database.")
+            if not results:
+                messagebox.showinfo("Info", "No images found in database.\nPlease store an image first using 'Store Metadata'.")
+                return
+
+            # Créer une fenêtre de sélection
+            selection_dialog = tk.Toplevel(self.root)
+            selection_dialog.title("Select Image from Database")
+            selection_dialog.geometry("700x400")
+            selection_dialog.transient(self.root)
+            selection_dialog.grab_set()
+            
+            # Centrer la fenêtre
+            selection_dialog.update_idletasks()
+            x = (selection_dialog.winfo_screenwidth() - 700) // 2
+            y = (selection_dialog.winfo_screenheight() - 400) // 2
+            selection_dialog.geometry(f"700x400+{x}+{y}")
+
+            # Frame principal
+            main_frame = ttk.Frame(selection_dialog, padding="10")
+            main_frame.pack(fill=tk.BOTH, expand=True)
+
+            ttk.Label(main_frame, text="Select an image to load:", style="Header.TLabel").pack(pady=(0, 10))
+
+            # Treeview pour afficher les images
+            columns = ('ID', 'Filename', 'Size', 'Processing', 'Date')
+            tree = ttk.Treeview(main_frame, columns=columns, show='headings', height=12)
+            
+            tree.heading('ID', text='ID')
+            tree.heading('Filename', text='Filename')
+            tree.heading('Size', text='Dimensions')
+            tree.heading('Processing', text='Processing Applied')
+            tree.heading('Date', text='Date Added')
+            
+            tree.column('ID', width=50, anchor='center')
+            tree.column('Filename', width=200)
+            tree.column('Size', width=100, anchor='center')
+            tree.column('Processing', width=200)
+            tree.column('Date', width=120, anchor='center')
+
+            # Scrollbar
+            scrollbar = ttk.Scrollbar(main_frame, orient=tk.VERTICAL, command=tree.yview)
+            tree.configure(yscrollcommand=scrollbar.set)
+
+            # Remplir le treeview
+            image_data = {}  # Stocker les données pour la sélection
+            for row in results:
+                img_id, filename, file_path, width, height, processing, created_at = row
+                size_str = f"{width}x{height}" if width and height else "N/A"
+                processing_str = processing if processing else "Original"
+                date_str = str(created_at)[:19] if created_at else "N/A"
+                
+                tree.insert('', tk.END, iid=str(img_id), values=(img_id, filename, size_str, processing_str, date_str))
+                image_data[str(img_id)] = {'path': file_path, 'filename': filename}
+
+            tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+            scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+            # Frame pour les boutons
+            button_frame = ttk.Frame(selection_dialog, padding="10")
+            button_frame.pack(fill=tk.X)
+
+            def load_selected():
+                selected = tree.selection()
+                if not selected:
+                    messagebox.showwarning("Warning", "Please select an image first.")
+                    return
+                
+                img_id = selected[0]
+                file_path = image_data[img_id]['path']
+                filename = image_data[img_id]['filename']
+                
+                # Vérifier si le fichier existe
+                if not os.path.exists(file_path):
+                    messagebox.showerror("Error", f"Image file not found:\n{file_path}\n\nThe file may have been moved or deleted.")
+                    return
+                
+                try:
+                    self.image_processor.load_image(file_path)
+                    self.original_image = self.image_processor.original_image.copy()
+                    self.current_image = self.original_image.copy()
+                    self.display_images()
+                    self.log(f"Image Loaded from DB: {filename}")
+                    selection_dialog.destroy()
+                    messagebox.showinfo("Success", f"Image '{filename}' loaded successfully!")
+                except Exception as e:
+                    messagebox.showerror("Error", f"Failed to load image: {e}")
+
+            def on_double_click(event):
+                load_selected()
+
+            tree.bind('<Double-1>', on_double_click)
+
+            ttk.Button(button_frame, text="Load Selected", command=load_selected).pack(side=tk.LEFT, padx=5)
+            ttk.Button(button_frame, text="Cancel", command=selection_dialog.destroy, style="Secondary.TButton").pack(side=tk.RIGHT, padx=5)
+
         except Exception as e:
             self.log(f"Error loading image from DB: {str(e)}")
-            messagebox.showerror("Error", f"Unable to load image from DB: {str(e)}")
+            messagebox.showerror("Error", f"Unable to load images from DB: {str(e)}")
 
     def reset_image(self):
         #Réinitialise l'image
@@ -1823,44 +1917,76 @@ Humidity:
                 self.log(f"Image Saved: {file_path}")
     
     def store_image_metadata(self):
-        #stock les métadonnées
-        if self.image_processor.image_path:
-            try:
-                self.image_processor.store_metadata()
-                self.log("Metadata Stored in Database")
-                messagebox.showinfo("Success", "Metadata Saved!")
-            except Exception as e:
-                self.log(f"Error: {str(e)}")
+        """Store original image metadata in database and copy to storage folder if needed"""
+        if not self.image_processor.image_path:
+            messagebox.showwarning("Warning", "No image loaded.\nPlease load an image first.")
+            return
+            
+        try:
+            # Créer le dossier de stockage s'il n'existe pas
+            storage_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "images", "stored")
+            os.makedirs(storage_folder, exist_ok=True)
+            
+            original_path = self.image_processor.image_path
+            filename = os.path.basename(original_path)
+            
+            # Si l'image n'est pas déjà dans le dossier de stockage, la copier
+            if storage_folder not in os.path.abspath(original_path):
+                # Ajouter un timestamp pour éviter les conflits de noms
+                name, ext = os.path.splitext(filename)
+                new_filename = f"{name}_{int(time.time())}{ext}"
+                new_path = os.path.join(storage_folder, new_filename)
+                
+                # Copier l'image originale
+                import shutil
+                shutil.copy2(original_path, new_path)
+                
+                # Mettre à jour le chemin dans l'image processor
+                self.image_processor.image_path = new_path
+                self.log(f"Image copied to: {new_path}")
+            
+            self.image_processor.store_metadata()
+            self.log("Metadata Stored in Database")
+            messagebox.showinfo("Success", f"Image metadata saved!\n\nStored in: images/stored/")
+        except Exception as e:
+            self.log(f"Error: {str(e)}")
+            messagebox.showerror("Error", f"Failed to store metadata: {str(e)}")
                 
     def store_processed_image_metadata(self):
-        if self.current_image is not None:
-            import time
-        # Génère un nom unique
-            file_path = f"processed_{int(time.time())}.png"
+        """Store processed image in a dedicated folder with metadata in database"""
+        if self.current_image is None:
+            messagebox.showwarning("Warning", "No processed image to save.\nPlease load and process an image first.")
+            return
+        
+        # Créer le dossier de stockage s'il n'existe pas
+        storage_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "images", "stored")
+        os.makedirs(storage_folder, exist_ok=True)
+        
+        # Génère un nom unique avec timestamp
+        timestamp = int(time.time())
+        filename = f"processed_{timestamp}.png"
+        file_path = os.path.join(storage_folder, filename)
 
-        # Sauvegarde l'image
+        try:
+            # Sauvegarde l'image dans le dossier dédié
             cv2.imwrite(file_path, self.current_image)
 
-        # Mettre à jour le chemin dans l'image processor
+            # Mettre à jour le chemin dans l'image processor
             self.image_processor.image_path = file_path
+            self.image_processor.image = self.current_image.copy()
+            
+            # Récupérer l'historique des traitements
+            processing_methods = ", ".join(self.image_processor.processing_history) if self.image_processor.processing_history else "manual_processing"
 
-        # Stocker le chemin et métadonnées dans la base
+            # Stocker les métadonnées dans image_metadata
             self.image_processor.store_metadata()
 
-        # Optionnel : aussi stocker dans la table images pour le chargement depuis DB
-            try:
-                self.db.connect()
-                self.db.cursor.execute(
-                    "INSERT INTO images (image_path, metadata) VALUES (?, ?)",
-                    (file_path, "Processed Image")
-                    )
-                self.db.connection.commit()
-                self.db.disconnect()
-            except Exception as e:
-                self.log(f"Error storing image in DB: {e}")
-
             self.log(f"Processed image saved: {file_path}")
-            messagebox.showinfo("Success", "Processed image metadata saved!")
+            messagebox.showinfo("Success", f"Processed image saved successfully!\n\nLocation: {file_path}")
+            
+        except Exception as e:
+            self.log(f"Error storing processed image: {e}")
+            messagebox.showerror("Error", f"Failed to save processed image: {e}")
 
     def update_blur_kernel(self, value):
         kernel = int(round(float(value)))
