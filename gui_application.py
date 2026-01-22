@@ -12,6 +12,7 @@ import cv2
 from PIL import Image, ImageTk
 import os
 import time
+from datetime import datetime
 
 # Import des modules du projet
 from database_integration import AirQualityDatabase
@@ -52,7 +53,10 @@ class EnvironmentalDataGUI:
         self.create_menu()
         self.create_main_layout()
         
-        self.load_data_from_db()
+        # Don't auto-load data on startup - user should click "Load from Database"
+        # self.load_data_from_db()
+        self.data = pd.DataFrame()  # Initialize empty DataFrame
+        self.update_stats()
         
 
     
@@ -578,13 +582,16 @@ class EnvironmentalDataGUI:
         right_frame = ttk.LabelFrame(tab, text="Data overview", padding=10)
         right_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
-        # Columns without Date and Time
-        columns = ('ID', 'CO', 'NO2', 'Temperature', 'Humidity')
+        # Columns with Date and Time
+        columns = ('ID', 'Date', 'Time', 'CO', 'NO2', 'Temperature', 'Humidity')
         self.data_tree = ttk.Treeview(right_frame, columns=columns, show='headings', height=15)
         
         for col in columns:
             self.data_tree.heading(col, text=col)
-            self.data_tree.column(col, width=100)
+            if col in ['Date', 'Time']:
+                self.data_tree.column(col, width=90)
+            else:
+                self.data_tree.column(col, width=80)
         
         #scrollbars
         vsb = ttk.Scrollbar(right_frame, orient=tk.VERTICAL, command=self.data_tree.yview)
@@ -651,6 +658,7 @@ class EnvironmentalDataGUI:
         ttk.Button(left_frame, text="Apply Filter", command=self.apply_filter).pack(fill=tk.X, pady=20)
         ttk.Button(left_frame, text="Reset", command=self.reset_filter).pack(fill=tk.X, pady=5)
         ttk.Button(left_frame, text="Save Filtered Data to DB", command=self.save_filtered_data).pack(fill=tk.X, pady=5)
+        ttk.Button(left_frame, text="View Filter History", command=self.view_filter_history).pack(fill=tk.X, pady=5)
 
         # Conteneur pour le tableau et la visualisation (même taille)
         content_frame = ttk.Frame(tab)
@@ -747,8 +755,51 @@ class EnvironmentalDataGUI:
         tab = ttk.Frame(self.notebook, padding=10)
         self.notebook.add(tab, text="Spectrum Analysis")
         
-        left_frame = ttk.LabelFrame(tab, text="Controls", padding=10)
-        left_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
+        # Conteneur pour la sidebar avec scroll (comme image processing)
+        sidebar_container = ttk.Frame(tab, width=220)
+        sidebar_container.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
+        sidebar_container.pack_propagate(False)  # Garder la largeur fixe
+        
+        # Canvas pour le scroll
+        spectral_canvas_scroll = tk.Canvas(sidebar_container, highlightthickness=0, width=200)
+        spectral_scrollbar = ttk.Scrollbar(sidebar_container, orient="vertical", command=spectral_canvas_scroll.yview)
+        
+        # Frame scrollable à l'intérieur du canvas
+        left_frame = ttk.LabelFrame(spectral_canvas_scroll, text="Controls", padding=10)
+        
+        # Configurer le scroll
+        spectral_canvas_scroll.configure(yscrollcommand=spectral_scrollbar.set)
+        
+        # Pack scrollbar et canvas
+        spectral_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        spectral_canvas_scroll.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        # Créer une fenêtre dans le canvas pour le frame
+        spectral_canvas_frame = spectral_canvas_scroll.create_window((0, 0), window=left_frame, anchor="nw")
+        
+        # Fonction pour mettre à jour la région de scroll
+        def configure_spectral_scroll_region(event):
+            spectral_canvas_scroll.configure(scrollregion=spectral_canvas_scroll.bbox("all"))
+        
+        def configure_spectral_canvas_width(event):
+            spectral_canvas_scroll.itemconfig(spectral_canvas_frame, width=event.width)
+        
+        left_frame.bind("<Configure>", configure_spectral_scroll_region)
+        spectral_canvas_scroll.bind("<Configure>", configure_spectral_canvas_width)
+        
+        # Activer le scroll avec la molette de la souris
+        def on_spectral_mousewheel(event):
+            spectral_canvas_scroll.yview_scroll(int(-1*(event.delta/120)), "units")
+        
+        def bind_spectral_mousewheel(event):
+            spectral_canvas_scroll.bind_all("<MouseWheel>", on_spectral_mousewheel)
+        
+        def unbind_spectral_mousewheel(event):
+            spectral_canvas_scroll.unbind_all("<MouseWheel>")
+        
+        # Lier/délier le scroll quand la souris entre/sort de la zone
+        spectral_canvas_scroll.bind("<Enter>", bind_spectral_mousewheel)
+        spectral_canvas_scroll.bind("<Leave>", unbind_spectral_mousewheel)
         
         # === SECTION 1: Variable Selection ===
         ttk.Label(left_frame, text="1. Select Variable", font=('Helvetica', 10, 'bold')).pack(anchor=tk.W)
@@ -801,6 +852,7 @@ class EnvironmentalDataGUI:
         ttk.Separator(left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
         ttk.Label(left_frame, text="4. Run Analysis", font=('Helvetica', 10, 'bold')).pack(anchor=tk.W, pady=(5, 5))
         ttk.Button(left_frame, text="▶ Run Analysis", command=self.run_spectral_analysis).pack(fill=tk.X, pady=5)
+        ttk.Button(left_frame, text="Reset", command=self.reset_spectral_analysis).pack(fill=tk.X, pady=5)
         
         # === Results Section ===
         ttk.Separator(left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
@@ -1058,10 +1110,12 @@ Humidity:
             self.data_tree.delete(item)
         
         if self.data is not None and len(self.data) > 0:
-            # Afficher tous les enregistrements (sans date et time)
+            # Afficher tous les enregistrements (avec date et time)
             for idx, row in self.data.iterrows():
                 values = (
                     row.get('id', idx),
+                    row.get('date', '') if pd.notna(row.get('date')) else '',
+                    row.get('time', '') if pd.notna(row.get('time')) else '',
                     f"{row.get('co_gt', 0):.2f}" if pd.notna(row.get('co_gt')) else '',
                     f"{row.get('no2_gt', 0):.2f}" if pd.notna(row.get('no2_gt')) else '',
                     f"{row.get('temperature', 0):.1f}" if pd.notna(row.get('temperature')) else '',
@@ -1168,29 +1222,35 @@ Humidity:
         # Create a dialog window for adding data
         dialog = tk.Toplevel(self.root)
         dialog.title("Add New Row")
-        dialog.geometry("300x250")
+        dialog.geometry("300x350")
         dialog.transient(self.root)
         dialog.grab_set()
         
-        fields = ['CO', 'NO2', 'Temperature', 'Humidity']
+        fields = ['Date', 'Time', 'CO', 'NO2', 'Temperature', 'Humidity']
         entries = {}
         
         for i, field in enumerate(fields):
             ttk.Label(dialog, text=f"{field}:").grid(row=i, column=0, padx=10, pady=5, sticky='w')
             entry = ttk.Entry(dialog)
+            if field == 'Date':
+                entry.insert(0, datetime.now().strftime('%d/%m/%Y'))
+            elif field == 'Time':
+                entry.insert(0, datetime.now().strftime('%H.%M.%S'))
             entry.grid(row=i, column=1, padx=10, pady=5, sticky='ew')
             entries[field] = entry
         
         def save_new_row():
             try:
                 self.db.connect()
+                date_val = entries['Date'].get() if entries['Date'].get() else 'N/A'
+                time_val = entries['Time'].get() if entries['Time'].get() else 'N/A'
                 co = float(entries['CO'].get()) if entries['CO'].get() else None
                 no2 = float(entries['NO2'].get()) if entries['NO2'].get() else None
                 temp = float(entries['Temperature'].get()) if entries['Temperature'].get() else None
                 hum = float(entries['Humidity'].get()) if entries['Humidity'].get() else None
                 
                 self.db.insert_measurement(
-                    date="N/A", time="N/A",
+                    date=date_val, time=time_val,
                     co_gt=co, no2_gt=no2,
                     temperature=temp, humidity=hum
                 )
@@ -1218,17 +1278,22 @@ Humidity:
         
         dialog = tk.Toplevel(self.root)
         dialog.title("Edit Row")
-        dialog.geometry("300x250")
+        dialog.geometry("300x350")
         dialog.transient(self.root)
         dialog.grab_set()
         
-        fields = ['CO', 'NO2', 'Temperature', 'Humidity']
+        # Fields now include Date and Time
+        fields = ['Date', 'Time', 'CO', 'NO2', 'Temperature', 'Humidity']
         entries = {}
+        
+        # Map field indices to values array (ID=0, Date=1, Time=2, CO=3, NO2=4, Temp=5, Humidity=6)
+        field_indices = {'Date': 1, 'Time': 2, 'CO': 3, 'NO2': 4, 'Temperature': 5, 'Humidity': 6}
         
         for i, field in enumerate(fields):
             ttk.Label(dialog, text=f"{field}:").grid(row=i, column=0, padx=10, pady=5, sticky='w')
             entry = ttk.Entry(dialog)
-            entry.insert(0, str(values[i+1]) if values[i+1] else '')
+            value_idx = field_indices[field]
+            entry.insert(0, str(values[value_idx]) if values[value_idx] else '')
             entry.grid(row=i, column=1, padx=10, pady=5, sticky='ew')
             entries[field] = entry
         
@@ -1236,6 +1301,10 @@ Humidity:
             try:
                 self.db.connect()
                 updates = {}
+                if entries['Date'].get():
+                    updates['date'] = entries['Date'].get()
+                if entries['Time'].get():
+                    updates['time'] = entries['Time'].get()
                 if entries['CO'].get():
                     updates['co_gt'] = float(entries['CO'].get())
                 if entries['NO2'].get():
@@ -1387,9 +1456,8 @@ Humidity:
         for item in self.filtered_tree.get_children():
             self.filtered_tree.delete(item)
         
-        # Afficher les 200 premières valeurs dans le tableau comparatif
-        display_limit = min(200, len(original))
-        for i in range(display_limit):
+        # Afficher TOUTES les valeurs dans le tableau comparatif
+        for i in range(len(original)):
             values = (
                 i,
                 f"{original[i]:.4f}",
@@ -1440,8 +1508,8 @@ Humidity:
         self.log("Filtering Reset")
         
     def save_filtered_data(self):
-        """Sauvegarde les données filtrées dans la base de données."""
-        if self.data is None:
+        """Sauvegarde les données filtrées dans la base de données avec historique complet."""
+        if self.data is None or len(self.data) == 0:
             messagebox.showwarning("Warning", "No data loaded to save")
             return
         
@@ -1452,30 +1520,201 @@ Humidity:
         
         var_selected = self.filter_var.get()
         df_column = self.COLUMN_MAP[var_selected]
+        filter_type = self.filter_type.get()
         
-        # Créer une nouvelle colonne pour les données filtrées
-        filtered_column_name = f"{df_column}_filtered"
-        
-        # Copier les données filtrées dans le DataFrame
-        # Note: nous devons nous assurer que les longueurs correspondent
-        data_copy = self.data.copy()
-        original_series = data_copy[df_column].dropna()
-        
-        # Créer une série avec les valeurs filtrées alignées sur les indices originaux
-        filtered_series = pd.Series(self.filtered_data, index=original_series.index)
-        data_copy[filtered_column_name] = np.nan
-        data_copy.loc[filtered_series.index, filtered_column_name] = filtered_series.values
-        
-        # Sauvegarder dans la base
+        # Récupérer les paramètres du filtre
+        window_size = int(self.window_size.get())
         try:
-            processor = DataProcessor()
-            processor.cleaned_data = data_copy
-            processor.store_cleaned_data()
-            self.log(f"Filtered data saved to database ({var_selected} -> {filtered_column_name})")
-            messagebox.showinfo("Success", f"Filtered data for {var_selected} saved as '{filtered_column_name}' in database.")
+            threshold_min = float(self.threshold_min.get())
+        except:
+            threshold_min = None
+        try:
+            threshold_max = float(self.threshold_max.get())
+        except:
+            threshold_max = None
+        
+        try:
+            self.db.connect()
+            
+            # Get the indices of non-null values in the original column
+            original_series = self.data[df_column].dropna()
+            
+            # Stocker chaque ligne filtrée dans l'historique
+            saved_count = 0
+            for i, (idx, original_value) in enumerate(original_series.items()):
+                if i < len(self.filtered_data):
+                    # Get the record id for this row
+                    record_id = self.data.loc[idx, 'id']
+                    filtered_value = float(self.filtered_data[i])
+                    
+                    # Insérer dans l'historique des données filtrées
+                    self.db.insert_filtered_data(
+                        original_record_id=int(record_id),
+                        variable_name=var_selected,
+                        filter_type=filter_type,
+                        window_size=window_size,
+                        threshold_min=threshold_min,
+                        threshold_max=threshold_max,
+                        original_value=float(original_value),
+                        filtered_value=filtered_value,
+                        row_index=int(idx)
+                    )
+                    saved_count += 1
+            
+            self.db.disconnect()
+            
+            # Log détaillé du filtre sauvegardé
+            filter_params = f"Filter: {filter_type}"
+            if filter_type == 'Moving Average':
+                filter_params += f", Window: {window_size}"
+            else:
+                filter_params += f", Min: {threshold_min}, Max: {threshold_max}"
+            
+            self.log(f"Filtered data saved: {saved_count} records for {var_selected} ({filter_params})")
+            messagebox.showinfo(
+                "Success", 
+                f"Filtered data saved to history!\n\n"
+                f"Variable: {var_selected}\n"
+                f"Filter Type: {filter_type}\n"
+                f"Records saved: {saved_count}\n\n"
+                f"All filtered data has been stored in the database history."
+            )
+            
         except Exception as e:
             self.log(f"Error saving filtered data: {e}")
             messagebox.showerror("Error", f"Unable to save filtered data: {e}")
+            if self.db.connection:
+                self.db.disconnect()
+    
+    def view_filter_history(self):
+        """Affiche l'historique des filtres appliqués dans une nouvelle fenêtre."""
+        history_window = tk.Toplevel(self.root)
+        history_window.title("Filter History")
+        history_window.geometry("1000x600")
+        
+        # Frame principal
+        main_frame = ttk.Frame(history_window, padding=10)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Filtres pour l'historique
+        filter_frame = ttk.LabelFrame(main_frame, text="Filter Options", padding=10)
+        filter_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        # Variable filter
+        ttk.Label(filter_frame, text="Variable:").pack(side=tk.LEFT, padx=5)
+        var_filter = ttk.Combobox(filter_frame, values=['All'] + self.display_columns, state="readonly", width=15)
+        var_filter.set('All')
+        var_filter.pack(side=tk.LEFT, padx=5)
+        
+        # Filter type filter
+        ttk.Label(filter_frame, text="Filter Type:").pack(side=tk.LEFT, padx=5)
+        type_filter = ttk.Combobox(filter_frame, values=['All', 'Moving Average', 'Threshold Filter'], state="readonly", width=20)
+        type_filter.set('All')
+        type_filter.pack(side=tk.LEFT, padx=5)
+        
+        # Treeview pour afficher l'historique
+        tree_frame = ttk.Frame(main_frame)
+        tree_frame.pack(fill=tk.BOTH, expand=True)
+        
+        columns = ('ID', 'Record ID', 'Variable', 'Filter Type', 'Window', 'Min', 'Max', 
+                   'Original', 'Filtered', 'Row Index', 'Applied At')
+        history_tree = ttk.Treeview(tree_frame, columns=columns, show='headings', height=20)
+        
+        # Configuration des colonnes
+        history_tree.heading('ID', text='ID')
+        history_tree.heading('Record ID', text='Record ID')
+        history_tree.heading('Variable', text='Variable')
+        history_tree.heading('Filter Type', text='Filter Type')
+        history_tree.heading('Window', text='Window Size')
+        history_tree.heading('Min', text='Min Threshold')
+        history_tree.heading('Max', text='Max Threshold')
+        history_tree.heading('Original', text='Original Value')
+        history_tree.heading('Filtered', text='Filtered Value')
+        history_tree.heading('Row Index', text='Row Index')
+        history_tree.heading('Applied At', text='Applied At')
+        
+        # Largeur des colonnes
+        history_tree.column('ID', width=50)
+        history_tree.column('Record ID', width=80)
+        history_tree.column('Variable', width=100)
+        history_tree.column('Filter Type', width=120)
+        history_tree.column('Window', width=80)
+        history_tree.column('Min', width=80)
+        history_tree.column('Max', width=80)
+        history_tree.column('Original', width=100)
+        history_tree.column('Filtered', width=100)
+        history_tree.column('Row Index', width=80)
+        history_tree.column('Applied At', width=150)
+        
+        # Scrollbars
+        vsb = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=history_tree.yview)
+        hsb = ttk.Scrollbar(tree_frame, orient=tk.HORIZONTAL, command=history_tree.xview)
+        history_tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+        
+        history_tree.grid(row=0, column=0, sticky='nsew')
+        vsb.grid(row=0, column=1, sticky='ns')
+        hsb.grid(row=1, column=0, sticky='ew')
+        
+        tree_frame.grid_rowconfigure(0, weight=1)
+        tree_frame.grid_columnconfigure(0, weight=1)
+        
+        # Fonction pour charger l'historique
+        def load_history():
+            # Effacer le contenu actuel
+            for item in history_tree.get_children():
+                history_tree.delete(item)
+            
+            try:
+                self.db.connect()
+                
+                # Récupérer les filtres
+                var = None if var_filter.get() == 'All' else var_filter.get()
+                ftype = None if type_filter.get() == 'All' else type_filter.get()
+                
+                history_data = self.db.get_filtered_data_history(variable_name=var, filter_type=ftype, limit=1000)
+                
+                self.db.disconnect()
+                
+                # Afficher les données
+                for row in history_data:
+                    # Format: (id, original_record_id, variable_name, filter_type, window_size,
+                    #          threshold_min, threshold_max, original_value, filtered_value, 
+                    #          row_index, applied_at)
+                    values = (
+                        row[0],  # id
+                        row[1],  # original_record_id
+                        row[2],  # variable_name
+                        row[3],  # filter_type
+                        row[4] if row[4] else '-',  # window_size
+                        f"{row[5]:.2f}" if row[5] is not None else '-',  # threshold_min
+                        f"{row[6]:.2f}" if row[6] is not None else '-',  # threshold_max
+                        f"{row[7]:.2f}" if row[7] is not None else '-',  # original_value
+                        f"{row[8]:.2f}" if row[8] is not None else '-',  # filtered_value
+                        row[9],  # row_index
+                        str(row[10])  # applied_at
+                    )
+                    history_tree.insert('', tk.END, values=values)
+                
+                self.log(f"Filter history loaded: {len(history_data)} records")
+                
+            except Exception as e:
+                messagebox.showerror("Error", f"Unable to load filter history: {e}")
+                if self.db.connection:
+                    self.db.disconnect()
+        
+        # Boutons
+        btn_frame = ttk.Frame(main_frame)
+        btn_frame.pack(fill=tk.X, pady=(10, 0))
+        
+        ttk.Button(btn_frame, text="Refresh", command=load_history).pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text="Close", command=history_window.destroy).pack(side=tk.RIGHT, padx=5)
+        
+        # Lier les filtres au rechargement
+        var_filter.bind('<<ComboboxSelected>>', lambda e: load_history())
+        type_filter.bind('<<ComboboxSelected>>', lambda e: load_history())
+        
+        # Charger l'historique initial
+        load_history()
 
     
     #FONCTIONS CORRÉLATIONS
@@ -1751,6 +1990,35 @@ Humidity:
         except Exception as e:
             self.log(f"Error: {str(e)}")
             messagebox.showerror("Error", f"Failed to save: {str(e)}")
+    
+    def reset_spectral_analysis(self):
+        """Reset spectral analysis - clear graph and results"""
+        # Clear the figure
+        self.spectral_fig.clear()
+        self.spectral_canvas.draw()
+        
+        # Clear results text
+        self.spectral_results.delete(1.0, tk.END)
+        
+        # Reset filter type to default
+        self.spectral_filter_type.set('No Filter')
+        self._update_filter_fields()
+        
+        # Reset representation type
+        self.spectral_repr_type.set('Power Spectrum')
+        
+        # Reset variable to first option
+        self.spectral_var.set(self.display_columns[0])
+        
+        # Reset filter parameters
+        self.cutoff_freq.delete(0, tk.END)
+        self.cutoff_freq.insert(0, "0.04")
+        self.low_cutoff.delete(0, tk.END)
+        self.low_cutoff.insert(0, "0.01")
+        self.high_cutoff.delete(0, tk.END)
+        self.high_cutoff.insert(0, "0.1")
+        
+        self.log("Spectral Analysis Reset")
     
     #FONCTIONS IMAGES
     

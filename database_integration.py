@@ -127,6 +127,24 @@ class AirQualityDatabase:
             )
         ''')
         
+        # Table pour stocker l'historique des données filtrées
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS filtered_data_history (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                original_record_id INT,
+                variable_name VARCHAR(100) NOT NULL,
+                filter_type VARCHAR(100) NOT NULL,
+                window_size INT,
+                threshold_min FLOAT,
+                threshold_max FLOAT,
+                original_value FLOAT,
+                filtered_value FLOAT,
+                row_index INT,
+                applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (original_record_id) REFERENCES air_quality_measurements(id) ON DELETE CASCADE
+            )
+        ''')
+        
         self.connection.commit()
         print("Tables Created Successfully.")
     
@@ -267,6 +285,45 @@ class AirQualityDatabase:
         self.connection.commit()
         print(f"Record {record_id} Deleted.")
         return True
+    
+    def insert_filtered_data(self, original_record_id, variable_name, filter_type, 
+                            window_size, threshold_min, threshold_max, 
+                            original_value, filtered_value, row_index):
+        """Insère un enregistrement de données filtrées dans l'historique."""
+        try:
+            self.cursor.execute('''
+                INSERT INTO filtered_data_history 
+                (original_record_id, variable_name, filter_type, window_size, 
+                 threshold_min, threshold_max, original_value, filtered_value, row_index)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ''', (original_record_id, variable_name, filter_type, window_size,
+                  threshold_min, threshold_max, original_value, filtered_value, row_index))
+            self.connection.commit()
+            return self.cursor.lastrowid
+        except mysql.connector.Error as err:
+            print(f"Error inserting filtered data: {err}")
+            raise
+    
+    def get_filtered_data_history(self, variable_name=None, filter_type=None, limit=None):
+        """Récupère l'historique des données filtrées avec filtres optionnels."""
+        query = "SELECT * FROM filtered_data_history WHERE 1=1"
+        params = []
+        
+        if variable_name:
+            query += " AND variable_name = %s"
+            params.append(variable_name)
+        
+        if filter_type:
+            query += " AND filter_type = %s"
+            params.append(filter_type)
+        
+        query += " ORDER BY applied_at DESC"
+        
+        if limit:
+            query += f" LIMIT {limit}"
+        
+        self.cursor.execute(query, params if params else None)
+        return self.cursor.fetchall()
     
     def get_statistics(self):
         stats = {}
