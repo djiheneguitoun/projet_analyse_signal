@@ -847,9 +847,51 @@ class EnvironmentalDataGUI:
         tab = ttk.Frame(self.notebook, padding=10)
         self.notebook.add(tab, text="Image Processing")
 
-        # Panneau gauche sans scroll - utilisation de grid pour un layout compact
-        left_frame = ttk.LabelFrame(tab, text="Processing", padding=10)
-        left_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
+        # Conteneur pour la sidebar avec scroll
+        sidebar_container = ttk.Frame(tab, width=220)
+        sidebar_container.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
+        sidebar_container.pack_propagate(False)  # Garder la largeur fixe
+        
+        # Canvas pour le scroll
+        canvas = tk.Canvas(sidebar_container, highlightthickness=0, width=200)
+        scrollbar = ttk.Scrollbar(sidebar_container, orient="vertical", command=canvas.yview)
+        
+        # Frame scrollable à l'intérieur du canvas
+        left_frame = ttk.LabelFrame(canvas, text="Processing", padding=10)
+        
+        # Configurer le scroll
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        # Pack scrollbar et canvas
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        # Créer une fenêtre dans le canvas pour le frame
+        canvas_frame = canvas.create_window((0, 0), window=left_frame, anchor="nw")
+        
+        # Fonction pour mettre à jour la région de scroll
+        def configure_scroll_region(event):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+        
+        def configure_canvas_width(event):
+            canvas.itemconfig(canvas_frame, width=event.width)
+        
+        left_frame.bind("<Configure>", configure_scroll_region)
+        canvas.bind("<Configure>", configure_canvas_width)
+        
+        # Activer le scroll avec la molette de la souris
+        def on_mousewheel(event):
+            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        
+        def bind_mousewheel(event):
+            canvas.bind_all("<MouseWheel>", on_mousewheel)
+        
+        def unbind_mousewheel(event):
+            canvas.unbind_all("<MouseWheel>")
+        
+        # Lier/délier le scroll quand la souris entre/sort de la zone
+        canvas.bind("<Enter>", bind_mousewheel)
+        canvas.bind("<Leave>", unbind_mousewheel)
 
         # --- Section: Load Image ---
         ttk.Button(left_frame, text="Load Image", command=self.load_image).pack(fill=tk.X, pady=3)
