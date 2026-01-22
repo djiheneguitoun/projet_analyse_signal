@@ -56,99 +56,439 @@ class EnvironmentalDataGUI:
     
     
     def setup_style(self):
+        """Configure un style moderne et professionnel pour l'application."""
         style = ttk.Style()
         style.theme_use("clam")
-
-    # Notebook (onglets)
+        
+        # =================================================================
+        # PALETTE DE COULEURS MODERNE (tons verts naturels)
+        # =================================================================
+        colors = {
+            'bg_primary': '#F8FAF9',        # Fond principal (légèrement plus chaud)
+            'bg_secondary': '#EDF3F0',      # Fond secondaire
+            'bg_accent': '#E4EDE8',         # Fond accent
+            'accent_primary': '#5B8A72',    # Vert principal (plus saturé)
+            'accent_light': '#7DA894',      # Vert clair
+            'accent_dark': '#3D6B54',       # Vert foncé
+            'accent_hover': '#8FBEA8',      # Vert hover
+            'text_primary': '#1E3329',      # Texte principal (plus foncé)
+            'text_secondary': '#3D5347',    # Texte secondaire
+            'text_muted': '#6B8579',        # Texte atténué
+            'border': '#C8D9CF',            # Bordures
+            'border_light': '#DDE8E2',      # Bordures légères
+            'white': '#FFFFFF',
+            'success': '#4A9B6E',           # Succès
+            'warning': '#C9A227',           # Avertissement
+        }
+        
+        # =================================================================
+        # CONFIGURATION GLOBALE
+        # =================================================================
+        
+        # Root window background
+        self.root.configure(bg=colors['bg_primary'])
+        
+        # =================================================================
+        # NOTEBOOK (Onglets) - Style moderne avec tabs arrondies
+        # =================================================================
         style.configure(
             "TNotebook",
-            background="#F4F7F4",
-            borderwidth=0
-    )
-
-# --- Onglets : même taille, pas de rétrécissement, pas de pointillés ---
+            background=colors['bg_primary'],
+            borderwidth=0,
+            tabmargins=[8, 8, 8, 0]
+        )
+        
         style.configure(
             "TNotebook.Tab",
-            background="#DDEAE2",
-            foreground="#2F3E36",
-            padding=(18, 8),      # identique pour tous
-            font=("Helvetica", 9, "bold"),
+            background=colors['bg_accent'],
+            foreground=colors['text_secondary'],
+            padding=[20, 10],
+            font=("Segoe UI", 10, "bold"),
             borderwidth=0,
-            relief="flat"
-)
+            focuscolor=""
+        )
 
         style.map(
             "TNotebook.Tab",
-            background=[("selected", "#A8C3B1")],
-            foreground=[("selected", "#1F2A24")],
-            padding=[("selected", (18, 8))],   # identique pour onglet actif
-            relief=[("selected", "flat")],
-            focuscolor=[("focus", "")],        # désactive le focus pointillé
-            bordercolor=[("focus", "")],
-            lightcolor=[("focus", "")],
-            darkcolor=[("focus", "")]
-)
-
-    
-
-    # Frames
+            background=[
+                ("selected", colors['accent_primary']),
+                ("active", colors['accent_light'])
+            ],
+            foreground=[
+                ("selected", colors['white']),
+                ("active", colors['text_primary'])
+            ],
+            padding=[
+                ("selected", [20, 10]),
+                ("active", [20, 10]),
+                ("!selected", [20, 10])
+            ],
+            focuscolor=[("focus", "")]
+        )
+        
+        # =================================================================
+        # FRAMES
+        # =================================================================
         style.configure(
             "TFrame",
-            background="#FAFBFA"
-    )
+            background=colors['bg_primary']
+        )
+        
+        style.configure(
+            "Card.TFrame",
+            background=colors['white'],
+            relief="flat"
+        )
 
         style.configure(
             "TLabelframe",
-            background="#FAFBFA",
-            foreground="#2F3E36",
-            font=("Helvetica", 10, "bold")
-    )
+            background=colors['bg_primary'],
+            foreground=colors['accent_primary'],
+            bordercolor=colors['border'],
+            lightcolor=colors['border_light'],
+            darkcolor=colors['border'],
+            borderwidth=2,
+            relief="groove"
+        )
 
         style.configure(
             "TLabelframe.Label",
-            background="#FAFBFA",
-            foreground="#2F3E36"
-    )
-
-    # Labels
+            background=colors['bg_primary'],
+            foreground=colors['accent_dark'],
+            font=("Segoe UI", 10, "bold"),
+            padding=[5, 2]
+        )
+        
+        # =================================================================
+        # LABELS
+        # =================================================================
         style.configure(
             "TLabel",
-            background="#FAFBFA",
-            foreground="#2F3E36",
-            font=("Helvetica", 10)
-    )
+            background=colors['bg_primary'],
+            foreground=colors['text_primary'],
+            font=("Segoe UI", 10)
+        )
 
         style.configure(
             "Header.TLabel",
-            font=("Helvetica", 12, "bold"),
-            foreground="#2F3E36",
-            background="#FAFBFA"
-    )
-
-    # Boutons
+            font=("Segoe UI", 13, "bold"),
+            foreground=colors['accent_dark'],
+            background=colors['bg_primary']
+        )
+        
+        style.configure(
+            "SubHeader.TLabel",
+            font=("Segoe UI", 11, "bold"),
+            foreground=colors['text_secondary'],
+            background=colors['bg_primary']
+        )
+        
+        style.configure(
+            "Muted.TLabel",
+            font=("Segoe UI", 9),
+            foreground=colors['text_muted'],
+            background=colors['bg_primary']
+        )
+        
+        # =================================================================
+        # BOUTONS - Style moderne avec effets hover
+        # =================================================================
         style.configure(
             "TButton",
-            background="#A8C3B1",
-            foreground="#1F2A24",
-            font=("Helvetica", 9, "bold"),
-            padding=6,
-            borderwidth=0
-    )
+            background=colors['accent_primary'],
+            foreground=colors['white'],
+            font=("Segoe UI", 10, "bold"),
+            padding=[12, 8],
+            borderwidth=0,
+            focuscolor="",
+            anchor="center"
+        )
 
         style.map(
             "TButton",
             background=[
-                ("active", "#C6DDD1"),
-                ("pressed", "#7FA892")
-        ]
-    )
-
-    # Scrollbar
+                ("pressed", colors['accent_dark']),
+                ("active", colors['accent_hover']),
+                ("disabled", colors['bg_accent'])
+            ],
+            foreground=[
+                ("disabled", colors['text_muted'])
+            ],
+            relief=[
+                ("pressed", "flat"),
+                ("!pressed", "flat")
+            ]
+        )
+        
+        # Bouton secondaire (outline style)
+        style.configure(
+            "Secondary.TButton",
+            background=colors['bg_primary'],
+            foreground=colors['accent_primary'],
+            font=("Segoe UI", 10),
+            padding=[12, 8],
+            borderwidth=2,
+            relief="solid"
+        )
+        
+        style.map(
+            "Secondary.TButton",
+            background=[
+                ("active", colors['bg_accent']),
+                ("pressed", colors['accent_light'])
+            ],
+            foreground=[
+                ("pressed", colors['white'])
+            ]
+        )
+        
+        # Bouton accent/action
+        style.configure(
+            "Accent.TButton",
+            background=colors['success'],
+            foreground=colors['white'],
+            font=("Segoe UI", 10, "bold"),
+            padding=[12, 8]
+        )
+        
+        style.map(
+            "Accent.TButton",
+            background=[
+                ("active", "#5AAF7E"),
+                ("pressed", "#3A8B5E")
+            ]
+        )
+        
+        # =================================================================
+        # COMBOBOX - Style moderne
+        # =================================================================
+        style.configure(
+            "TCombobox",
+            background=colors['white'],
+            foreground=colors['text_primary'],
+            fieldbackground=colors['white'],
+            selectbackground=colors['accent_light'],
+            selectforeground=colors['white'],
+            bordercolor=colors['border'],
+            arrowcolor=colors['accent_primary'],
+            padding=[8, 6],
+            font=("Segoe UI", 10)
+        )
+        
+        style.map(
+            "TCombobox",
+            fieldbackground=[
+                ("readonly", colors['white']),
+                ("disabled", colors['bg_secondary'])
+            ],
+            foreground=[
+                ("readonly", colors['text_primary']),
+                ("disabled", colors['text_muted'])
+            ],
+            background=[
+                ("active", colors['accent_light']),
+                ("pressed", colors['accent_primary'])
+            ],
+            bordercolor=[
+                ("focus", colors['accent_primary']),
+                ("hover", colors['accent_light'])
+            ],
+            arrowcolor=[
+                ("disabled", colors['text_muted'])
+            ]
+        )
+        
+        # Style for dropdown list
+        self.root.option_add('*TCombobox*Listbox.background', colors['white'])
+        self.root.option_add('*TCombobox*Listbox.foreground', colors['text_primary'])
+        self.root.option_add('*TCombobox*Listbox.selectBackground', colors['accent_primary'])
+        self.root.option_add('*TCombobox*Listbox.selectForeground', colors['white'])
+        self.root.option_add('*TCombobox*Listbox.font', ('Segoe UI', 10))
+        
+        # =================================================================
+        # ENTRY - Champs de texte modernes
+        # =================================================================
+        style.configure(
+            "TEntry",
+            fieldbackground=colors['white'],
+            foreground=colors['text_primary'],
+            bordercolor=colors['border'],
+            lightcolor=colors['border_light'],
+            insertcolor=colors['accent_primary'],
+            padding=[8, 6],
+            font=("Segoe UI", 10)
+        )
+        
+        style.map(
+            "TEntry",
+            bordercolor=[
+                ("focus", colors['accent_primary'])
+            ],
+            lightcolor=[
+                ("focus", colors['accent_light'])
+            ]
+        )
+        
+        # =================================================================
+        # SCALE (Sliders) - Style moderne
+        # =================================================================
+        style.configure(
+            "TScale",
+            background=colors['bg_primary'],
+            troughcolor=colors['border_light'],
+            sliderlength=20,
+            sliderthickness=20
+        )
+        
+        style.configure(
+            "Horizontal.TScale",
+            background=colors['bg_primary'],
+            troughcolor=colors['bg_accent'],
+            sliderrelief="flat"
+        )
+        
+        style.map(
+            "Horizontal.TScale",
+            background=[
+                ("active", colors['accent_hover'])
+            ]
+        )
+        
+        # =================================================================
+        # SCROLLBAR - Style minimaliste moderne
+        # =================================================================
         style.configure(
             "Vertical.TScrollbar",
-            background="#DDEAE2",
-            troughcolor="#F4F7F4"
-    )
+            background=colors['bg_accent'],
+            troughcolor=colors['bg_secondary'],
+            bordercolor=colors['bg_secondary'],
+            arrowcolor=colors['accent_primary'],
+            relief="flat",
+            width=12
+        )
+        
+        style.map(
+            "Vertical.TScrollbar",
+            background=[
+                ("active", colors['accent_light']),
+                ("pressed", colors['accent_primary'])
+            ]
+        )
+        
+        style.configure(
+            "Horizontal.TScrollbar",
+            background=colors['bg_accent'],
+            troughcolor=colors['bg_secondary'],
+            bordercolor=colors['bg_secondary'],
+            arrowcolor=colors['accent_primary'],
+            relief="flat",
+            width=12
+        )
+        
+        style.map(
+            "Horizontal.TScrollbar",
+            background=[
+                ("active", colors['accent_light']),
+                ("pressed", colors['accent_primary'])
+            ]
+        )
+        
+        # =================================================================
+        # TREEVIEW - Table moderne
+        # =================================================================
+        style.configure(
+            "Treeview",
+            background=colors['white'],
+            foreground=colors['text_primary'],
+            fieldbackground=colors['white'],
+            rowheight=28,
+            font=("Segoe UI", 10)
+        )
+        
+        style.configure(
+            "Treeview.Heading",
+            background=colors['accent_primary'],
+            foreground=colors['white'],
+            font=("Segoe UI", 10, "bold"),
+            padding=[8, 6],
+            relief="flat"
+        )
+        
+        style.map(
+            "Treeview.Heading",
+            background=[
+                ("active", colors['accent_dark'])
+            ]
+        )
+        
+        style.map(
+            "Treeview",
+            background=[
+                ("selected", colors['accent_light'])
+            ],
+            foreground=[
+                ("selected", colors['white'])
+            ]
+        )
+        
+        # =================================================================
+        # SEPARATOR
+        # =================================================================
+        style.configure(
+            "TSeparator",
+            background=colors['border_light']
+        )
+        
+        # =================================================================
+        # PROGRESSBAR
+        # =================================================================
+        style.configure(
+            "TProgressbar",
+            background=colors['accent_primary'],
+            troughcolor=colors['bg_accent'],
+            bordercolor=colors['border'],
+            lightcolor=colors['accent_light'],
+            darkcolor=colors['accent_dark']
+        )
+        
+        # =================================================================
+        # CHECKBUTTON & RADIOBUTTON
+        # =================================================================
+        style.configure(
+            "TCheckbutton",
+            background=colors['bg_primary'],
+            foreground=colors['text_primary'],
+            font=("Segoe UI", 10),
+            focuscolor=""
+        )
+        
+        style.map(
+            "TCheckbutton",
+            background=[
+                ("active", colors['bg_secondary'])
+            ],
+            indicatorcolor=[
+                ("selected", colors['accent_primary'])
+            ]
+        )
+        
+        style.configure(
+            "TRadiobutton",
+            background=colors['bg_primary'],
+            foreground=colors['text_primary'],
+            font=("Segoe UI", 10),
+            focuscolor=""
+        )
+        
+        style.map(
+            "TRadiobutton",
+            background=[
+                ("active", colors['bg_secondary'])
+            ],
+            indicatorcolor=[
+                ("selected", colors['accent_primary'])
+            ]
+        )
 
     
     def create_menu(self):
@@ -310,16 +650,25 @@ class EnvironmentalDataGUI:
         ttk.Button(left_frame, text="Reset", command=self.reset_filter).pack(fill=tk.X, pady=5)
         ttk.Button(left_frame, text="Save Filtered Data to DB", command=self.save_filtered_data).pack(fill=tk.X, pady=5)
 
-        # Frame pour le tableau filtré (principal, à droite)
-        filtered_frame = ttk.LabelFrame(tab, text="Filtered Data", padding=10)
-        filtered_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(10,0))
+        # Conteneur pour le tableau et la visualisation (même taille)
+        content_frame = ttk.Frame(tab)
+        content_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(10, 0))
+        
+        # Configurer le grid pour partager l'espace équitablement
+        content_frame.grid_columnconfigure(0, weight=1, uniform="equal")
+        content_frame.grid_columnconfigure(1, weight=1, uniform="equal")
+        content_frame.grid_rowconfigure(0, weight=1)
+
+        # Frame pour le tableau filtré
+        filtered_frame = ttk.LabelFrame(content_frame, text="Filtered Data", padding=10)
+        filtered_frame.grid(row=0, column=0, sticky='nsew', padx=(0, 5))
 
         # Créer le Treeview avec les mêmes colonnes que le tableau principal
         filter_columns = ('ID', 'CO', 'NO2', 'Temperature', 'Humidity')
-        self.filtered_tree = ttk.Treeview(filtered_frame, columns=filter_columns, show='headings', height=20)
+        self.filtered_tree = ttk.Treeview(filtered_frame, columns=filter_columns, show='headings', height=15)
         for col in filter_columns:
             self.filtered_tree.heading(col, text=col)
-            self.filtered_tree.column(col, width=100)
+            self.filtered_tree.column(col, width=80)
 
         # Scrollbars
         vsb_f = ttk.Scrollbar(filtered_frame, orient=tk.VERTICAL, command=self.filtered_tree.yview)
@@ -333,11 +682,11 @@ class EnvironmentalDataGUI:
         filtered_frame.grid_rowconfigure(0, weight=1)
         filtered_frame.grid_columnconfigure(0, weight=1)
 
-        # Small visualization frame (reduced size)
-        right_frame = ttk.LabelFrame(tab, text="Preview", padding=5)
-        right_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(10,0))
+        # Frame pour la visualisation (même taille que le tableau)
+        right_frame = ttk.LabelFrame(content_frame, text="Preview", padding=10)
+        right_frame.grid(row=0, column=1, sticky='nsew', padx=(5, 0))
         
-        self.filter_fig = Figure(figsize=(3, 4), dpi=80)
+        self.filter_fig = Figure(figsize=(5, 5), dpi=90)
         self.filter_canvas = FigureCanvasTkAgg(self.filter_fig, right_frame)
         self.filter_canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
     
