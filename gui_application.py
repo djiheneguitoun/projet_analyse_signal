@@ -484,74 +484,102 @@ class EnvironmentalDataGUI:
         tab = ttk.Frame(self.notebook, padding=10)
         self.notebook.add(tab, text="Image Processing")
 
-        left_container = ttk.LabelFrame(tab, text="Processing", padding=5)
-        left_container.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
+        # Panneau gauche sans scroll - utilisation de grid pour un layout compact
+        left_frame = ttk.LabelFrame(tab, text="Processing", padding=10)
+        left_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
 
-        left_frame = self.create_scrollable_frame(left_container)
+        # --- Section: Load Image ---
+        ttk.Button(left_frame, text="Load Image", command=self.load_image).pack(fill=tk.X, pady=3)
+        ttk.Button(left_frame, text="Load Image from DB", command=self.load_image_from_db).pack(fill=tk.X, pady=3)
 
+        ttk.Separator(left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=8)
         
-        ttk.Button(left_frame, text="Load Image", command=self.load_image).pack(fill=tk.X, pady=5)
-        ttk.Button(left_frame, text="Load Image from DB", command=self.load_image_from_db).pack(fill=tk.X, pady=5)
-
-        ttk.Separator(left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
-        
+        # --- Section: Processing avec Dropdown ---
         ttk.Label(left_frame, text="Processing:", font=('Helvetica', 10, 'bold')).pack(anchor=tk.W)
         
-        ttk.Button(left_frame, text="Grayscale Conversion", command=lambda: self.apply_image_processing('grayscale')).pack(fill=tk.X, pady=3)
-        ttk.Button(left_frame, text="Gaussian Blur", command=lambda: self.apply_image_processing('blur')).pack(fill=tk.X, pady=3)
-        ttk.Button(left_frame, text="Canny edge detection", command=lambda: self.apply_image_processing('canny')).pack(fill=tk.X, pady=3)
-        ttk.Button(left_frame, text="Otsu Thresholding", command=lambda: self.apply_image_processing('otsu')).pack(fill=tk.X, pady=3)
-        ttk.Button(left_frame, text="Adaptive Thresholding", command=lambda: self.apply_image_processing('adaptive')).pack(fill=tk.X, pady=3)
-        ttk.Button(left_frame, text="Sobel", command=lambda: self.apply_image_processing('sobel')).pack(fill=tk.X, pady=3)
+        # Mapping des noms affichés vers les clés de traitement
+        self.processing_options = {
+            'Grayscale Conversion': 'grayscale',
+            'Gaussian Blur': 'blur',
+            'Canny Edge Detection': 'canny',
+            'Otsu Thresholding': 'otsu',
+            'Adaptive Thresholding': 'adaptive',
+            'Sobel Filter': 'sobel'
+        }
         
-        ttk.Separator(left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
+        # Dropdown menu pour sélection du traitement
+        self.processing_combo = ttk.Combobox(
+            left_frame, 
+            values=list(self.processing_options.keys()),
+            state='readonly',
+            width=22
+        )
+        self.processing_combo.set('Grayscale Conversion')
+        self.processing_combo.pack(fill=tk.X, pady=5)
         
-        # Paramètre flou
-       # Paramètre flou (KERNEL IMPAIR UNIQUEMENT)
-        ttk.Label(left_frame, text="Blur Kernel:").pack(anchor=tk.W)
-
+        # Bouton Apply pour appliquer le traitement sélectionné
+        ttk.Button(left_frame, text="Apply Processing", command=self.apply_selected_processing).pack(fill=tk.X, pady=3)
+        
+        ttk.Separator(left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=8)
+        
+        # --- Section: Parameters ---
+        ttk.Label(left_frame, text="Parameters:", font=('Helvetica', 10, 'bold')).pack(anchor=tk.W)
+        
+        # Paramètre flou (KERNEL IMPAIR UNIQUEMENT)
+        ttk.Label(left_frame, text="Blur Kernel:").pack(anchor=tk.W, pady=(5, 0))
+        
+        kernel_frame = ttk.Frame(left_frame)
+        kernel_frame.pack(fill=tk.X)
+        
         self.blur_kernel = ttk.Scale(
-           left_frame,
-           from_=3,
-           to=21,
-           orient=tk.HORIZONTAL,
-           command=self.update_blur_kernel
-)
+            kernel_frame,
+            from_=3,
+            to=21,
+            orient=tk.HORIZONTAL,
+            command=self.update_blur_kernel
+        )
         self.blur_kernel.set(5)
         self.current_blur_kernel = 5
-
-        self.blur_kernel.pack(fill=tk.X, pady=5)
-
-        self.blur_kernel_label = ttk.Label(left_frame, text="5")
-        self.blur_kernel_label.pack(anchor=tk.W)
+        self.blur_kernel.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        
+        self.blur_kernel_label = ttk.Label(kernel_frame, text="5", width=3)
+        self.blur_kernel_label.pack(side=tk.RIGHT, padx=5)
 
         # Seuils Canny
-        ttk.Label(left_frame, text="Canny Threshold 1:").pack(anchor=tk.W)
-        self.canny_thresh1 = ttk.Scale(left_frame, from_=0, to=255, orient=tk.HORIZONTAL)
-        self.canny_thresh1.set(50)
-        self.canny_thresh1.pack(fill=tk.X, pady=2)
+        ttk.Label(left_frame, text="Canny Threshold 1:").pack(anchor=tk.W, pady=(5, 0))
         
-        self.canny_thresh1_label = ttk.Label(left_frame, text=f"{int(self.canny_thresh1.get())}")
-        self.canny_thresh1_label.pack(anchor=tk.W)
+        thresh1_frame = ttk.Frame(left_frame)
+        thresh1_frame.pack(fill=tk.X)
+        
+        self.canny_thresh1 = ttk.Scale(thresh1_frame, from_=0, to=255, orient=tk.HORIZONTAL)
+        self.canny_thresh1.set(50)
+        self.canny_thresh1.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        
+        self.canny_thresh1_label = ttk.Label(thresh1_frame, text="50", width=3)
+        self.canny_thresh1_label.pack(side=tk.RIGHT, padx=5)
         self.canny_thresh1.configure(command=lambda v: self.canny_thresh1_label.configure(text=f"{int(float(v))}"))
         
-        ttk.Label(left_frame, text="Canny Threshold 2:").pack(anchor=tk.W)
-        self.canny_thresh2 = ttk.Scale(left_frame, from_=0, to=255, orient=tk.HORIZONTAL)
-        self.canny_thresh2.set(150)
-        self.canny_thresh2.pack(fill=tk.X, pady=2)
+        ttk.Label(left_frame, text="Canny Threshold 2:").pack(anchor=tk.W, pady=(5, 0))
         
-        self.canny_thresh2_label = ttk.Label(left_frame, text=f"{int(self.canny_thresh2.get())}")
-        self.canny_thresh2_label.pack(anchor=tk.W)
+        thresh2_frame = ttk.Frame(left_frame)
+        thresh2_frame.pack(fill=tk.X)
+        
+        self.canny_thresh2 = ttk.Scale(thresh2_frame, from_=0, to=255, orient=tk.HORIZONTAL)
+        self.canny_thresh2.set(150)
+        self.canny_thresh2.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        
+        self.canny_thresh2_label = ttk.Label(thresh2_frame, text="150", width=3)
+        self.canny_thresh2_label.pack(side=tk.RIGHT, padx=5)
         self.canny_thresh2.configure(command=lambda v: self.canny_thresh2_label.configure(text=f"{int(float(v))}"))
         
+        ttk.Separator(left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=8)
         
-        ttk.Separator(left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
+        # --- Section: Actions ---
+        ttk.Button(left_frame, text="Reset", command=self.reset_image).pack(fill=tk.X, pady=3)
+        ttk.Button(left_frame, text="Save", command=self.save_processed_image).pack(fill=tk.X, pady=3)
+        ttk.Button(left_frame, text="Store Metadata", command=self.store_processed_image_metadata).pack(fill=tk.X, pady=3)
         
-        ttk.Button(left_frame, text="Reset", command=self.reset_image).pack(fill=tk.X, pady=5)
-        ttk.Button(left_frame, text="Save", command=self.save_processed_image).pack(fill=tk.X, pady=5)
-        ttk.Button(left_frame, text="Store Metadata", command=self.store_processed_image_metadata).pack(fill=tk.X, pady=5)
-        
-        #à droite
+        # --- Zone d'affichage à droite ---
         right_frame = ttk.Frame(tab)
         right_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
@@ -564,6 +592,13 @@ class EnvironmentalDataGUI:
         proc_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(5, 0))
         self.proc_image_label = ttk.Label(proc_frame, text="No Processing")
         self.proc_image_label.pack(fill=tk.BOTH, expand=True)
+    
+    def apply_selected_processing(self):
+        """Applique le traitement sélectionné dans le dropdown menu"""
+        selected = self.processing_combo.get()
+        if selected in self.processing_options:
+            processing_key = self.processing_options[selected]
+            self.apply_image_processing(processing_key)
     
    
     
