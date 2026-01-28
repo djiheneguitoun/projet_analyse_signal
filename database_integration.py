@@ -1,17 +1,3 @@
-"""
-Partie 1: Intégration de la Base de Données
-============================================
-Ce module gère la création et la manipulation de la base de données MySQL
-pour stocker les mesures de qualité de l'air.
-
-Fonctionnalités:
-- Création de la base de données et des tables
-- Insertion des données depuis le fichier CSV
-- Récupération des données avec filtres
-- Mise à jour des enregistrements
-- Suppression des enregistrements
-"""
-
 import mysql.connector
 import pandas as pd
 import os
@@ -19,7 +5,6 @@ from datetime import datetime
 
 
 class AirQualityDatabase:
-    #classe pour gérer la base de données MySQL
     
     def __init__(self, db_path="db_air_quality"):
         self.db_name = db_path if db_path != "air_quality.db" else "db_air_quality"
@@ -30,9 +15,7 @@ class AirQualityDatabase:
         self.cursor = None
     
     def connect(self):
-        #Établit la connexion à la base de données MySQL
         try:
-            # First connect without database to create it if needed
             temp_conn = mysql.connector.connect(
                 host=self.host,
                 user=self.user,
@@ -42,7 +25,6 @@ class AirQualityDatabase:
             temp_cursor.execute(f"CREATE DATABASE IF NOT EXISTS {self.db_name}")
             temp_conn.close()
             
-            # Now connect to the specific database
             self.connection = mysql.connector.connect(
                 host=self.host,
                 user=self.user,
@@ -56,14 +38,12 @@ class AirQualityDatabase:
             raise
     
     def disconnect(self):
-        #ferme la connexion à la base de données
         if self.connection:
             self.connection.close()
             print("Connection Closed.")
     
     def create_tables(self):
         
-        #table principale pour les mesures de qualité de l'air
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS air_quality_measurements (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -77,7 +57,6 @@ class AirQualityDatabase:
             )
         ''')
         
-        #table pour les métadonnées des images
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS image_metadata (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -91,20 +70,8 @@ class AirQualityDatabase:
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             )
         ''')
-        
-        # Table des images
-        self.cursor.execute("""
-            CREATE TABLE IF NOT EXISTS images (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                image_path VARCHAR(500) NOT NULL,
-                metadata TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-            """)
 
  
-        
-        #table pour stocker les résultats de corrélation
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS correlation_results (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -116,7 +83,6 @@ class AirQualityDatabase:
             )
         ''')
         
-        #table pr stocker resultst d'analyse spectrale
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS spectral_analysis (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -127,7 +93,6 @@ class AirQualityDatabase:
             )
         ''')
         
-        # Table pour stocker l'historique des données filtrées
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS filtered_data_history (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -153,10 +118,8 @@ class AirQualityDatabase:
         #lecture du CSV avec le bon séparateur et format décimal
         df = pd.read_csv(csv_path, sep=';', decimal=',')
         
-        #suppression des colonnes vides
         df = df.dropna(axis=1, how='all')
         
-        #renommer colonnes pour correspondre à notre schéma
         column_mapping = {
             'Date': 'date',
             'Time': 'time',
@@ -170,8 +133,7 @@ class AirQualityDatabase:
         df = df.replace(-200, None)
         
         df = df.dropna(how='all')
-        
-        #insertion des données
+
         count = 0
         for _, row in df.iterrows():
             try:
@@ -194,8 +156,7 @@ class AirQualityDatabase:
         print(f"{count} Records Inserted Since {csv_path}")
         return count
     
-    # REQUÊTES CRUD
-    
+    # REQUÊTES CRUD  
     def insert_measurement(self, date, time, co_gt=None, no2_gt=None,
                            temperature=None, humidity=None):
     
@@ -211,7 +172,6 @@ class AirQualityDatabase:
         return self.cursor.lastrowid
     
     def get_all_measurements(self, limit=None):
-        #Récupère toutes les mesures
               
         query = "SELECT * FROM air_quality_measurements"
         if limit:
@@ -289,7 +249,6 @@ class AirQualityDatabase:
     def insert_filtered_data(self, original_record_id, variable_name, filter_type, 
                             window_size, threshold_min, threshold_max, 
                             original_value, filtered_value, row_index):
-        """Insère un enregistrement de données filtrées dans l'historique."""
         try:
             self.cursor.execute('''
                 INSERT INTO filtered_data_history 
@@ -305,7 +264,6 @@ class AirQualityDatabase:
             raise
     
     def get_filtered_data_history(self, variable_name=None, filter_type=None, limit=None):
-        """Récupère l'historique des données filtrées avec filtres optionnels."""
         query = "SELECT * FROM filtered_data_history WHERE 1=1"
         params = []
         
@@ -328,7 +286,6 @@ class AirQualityDatabase:
     def get_statistics(self):
         stats = {}
         
-        #nombre total d'enregistrements
         self.cursor.execute("SELECT COUNT(*) FROM air_quality_measurements")
         stats['total_records'] = self.cursor.fetchone()[0]
         
@@ -358,7 +315,6 @@ class AirQualityDatabase:
 #FONCTIONS DE TEST 
 
 def test_database_operations():
-    #teste toutes les opérations de la base de données
     
     print("=" * 60)
     print("Test Database Operations")
@@ -368,11 +324,9 @@ def test_database_operations():
     db = AirQualityDatabase("db_air_quality")
     db.connect()
     
-    #création tables
     print("\n1. Table Creation..")
     db.create_tables()
-    
-    #chargement des données CSV
+
     print("\n2. CSV Data Loading...")
     csv_path = "AirQualityUCI.csv"
     if os.path.exists(csv_path):
@@ -380,22 +334,18 @@ def test_database_operations():
     else:
         print(f"File {csv_path} Not Found.")
     
-    #test de récupération
     print("\n3. Data Retrieval Test..")
     records = db.get_all_measurements(limit=5)
     print(f"First 5 Records Retrieved: {len(records)} Rows")
     
-    #test de filtrage par date
     print("\n4. Date Filtering Test..")
     filtered = db.get_measurements_by_date("10/03/2004")
     print(f"Records for 03/10/2004: {len(filtered)} Rows")
     
-    #test de filtrage par seuil
     print("\n5. Threshold Filtering Test (Temperature > 20°C)..")
     high_temp = db.get_measurements_by_threshold('temperature', min_value=20)
     print(f"Records with Temperature > 20°C: {len(high_temp)} Rows")
     
-    #test d'insertion
     print("\n6. New Measurement Insertion Test..")
     new_id = db.insert_measurement(
         date="31/12/2025",
@@ -404,23 +354,19 @@ def test_database_operations():
         temperature=15.0,
         humidity=55.0
     )
-    
-    #test de mise à jour
+
     print("\n7. Update Test..")
     db.update_measurement(new_id, temperature=16.5, humidity=60.0)
     
-    #test des statistiques
     print("\n8. Database Statistics..")
     stats = db.get_statistics()
     print(f" Total Records: {stats['total_records']}")
     print(f" Temperature - Moy: {stats['temperature']['moyenne']}°C, "
           f"Min: {stats['temperature']['min']}°C, Max: {stats['temperature']['max']}°C")
     
-    #test de suppression
     print("\n9. Deletion Test..")
     db.delete_measurement(new_id)
     
-    #récupération en DataFrame
     print("\n10. DataFrame Retrieval Test..")
     df = db.get_data_as_dataframe()
     print(f" DataFrame: {df.shape[0]} rows, {df.shape[1]} columns")

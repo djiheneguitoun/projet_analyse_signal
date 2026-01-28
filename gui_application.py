@@ -3,7 +3,7 @@ from tkinter import ttk, filedialog, messagebox, scrolledtext
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 import seaborn as sns
 from scipy.signal import welch     #calcul DSP
@@ -14,7 +14,7 @@ import os
 import time
 from datetime import datetime
 
-# Import des modules du projet
+#Import des modules du projet
 from database_integration import AirQualityDatabase
 from data_processing import DataProcessor
 from correlation_analysis import CorrelationAnalyzer
@@ -28,7 +28,7 @@ class EnvironmentalDataGUI:
         self.root = root
         self.root.title("Environmental Data Processing - Air quality and environmental metrics -")
         self.root.geometry("1200x800")
-        self.root.minsize(1000, 600)  #max réduire possible
+        self.root.minsize(1000, 600)  
         
         #variables
         self.db = AirQualityDatabase("db_air_quality")
@@ -39,7 +39,7 @@ class EnvironmentalDataGUI:
             'Temperature': 'temperature',
             'Humidity': 'humidity'
 }
-        self.display_columns = list(self.COLUMN_MAP.keys())  # ['CO', 'NO2', 'Temperature', 'Humidity']
+        self.display_columns = list(self.COLUMN_MAP.keys())  
 
 
         self.current_image = None
@@ -53,452 +53,105 @@ class EnvironmentalDataGUI:
         self.create_menu()
         self.create_main_layout()
         
-        # Don't auto-load data on startup - user should click "Load from Database"
-        # self.load_data_from_db()
-        self.data = pd.DataFrame()  # Initialize empty DataFrame
+        self.data = pd.DataFrame()  
         self.update_stats()
         
-
-    
-    
     def setup_style(self):
-        """Configure un style moderne et professionnel pour l'application."""
         style = ttk.Style()
         style.theme_use("clam")
-        
-        # =================================================================
-        # PALETTE DE COULEURS MODERNE (tons verts naturels)
-        # =================================================================
-        colors = {
-            'bg_primary': '#F8FAF9',        # Fond principal (légèrement plus chaud)
-            'bg_secondary': '#EDF3F0',      # Fond secondaire
-            'bg_accent': '#E4EDE8',         # Fond accent
-            'accent_primary': '#5B8A72',    # Vert principal (plus saturé)
-            'accent_light': '#7DA894',      # Vert clair
-            'accent_dark': '#3D6B54',       # Vert foncé
-            'accent_hover': '#8FBEA8',      # Vert hover
-            'text_primary': '#1E3329',      # Texte principal (plus foncé)
-            'text_secondary': '#3D5347',    # Texte secondaire
-            'text_muted': '#6B8579',        # Texte atténué
-            'border': '#C8D9CF',            # Bordures
-            'border_light': '#DDE8E2',      # Bordures légères
-            'white': '#FFFFFF',
-            'success': '#4A9B6E',           # Succès
-            'warning': '#C9A227',           # Avertissement
-        }
-        
-        # =================================================================
-        # CONFIGURATION GLOBALE
-        # =================================================================
-        
-        # Root window background
-        self.root.configure(bg=colors['bg_primary'])
-        
-        # =================================================================
-        # NOTEBOOK (Onglets) - Style moderne avec tabs arrondies
-        # =================================================================
+
+    # Notebook (onglets)
         style.configure(
             "TNotebook",
-            background=colors['bg_primary'],
-            borderwidth=0,
-            tabmargins=[8, 8, 8, 0]
-        )
-        
+            background="#F4F7F4",
+            borderwidth=0
+    )
+
+# --- Onglets : même taille, pas de rétrécissement, pas de pointillés ---
         style.configure(
             "TNotebook.Tab",
-            background=colors['bg_accent'],
-            foreground=colors['text_secondary'],
-            padding=[20, 10],
-            font=("Segoe UI", 10, "bold"),
+            background="#DDEAE2",
+            foreground="#2F3E36",
+            padding=(18, 8),      # identique pour tous
+            font=("Helvetica", 9, "bold"),
             borderwidth=0,
-            focuscolor=""
-        )
+            relief="flat"
+)
 
         style.map(
             "TNotebook.Tab",
-            background=[
-                ("selected", colors['accent_primary']),
-                ("active", colors['accent_light'])
-            ],
-            foreground=[
-                ("selected", colors['white']),
-                ("active", colors['text_primary'])
-            ],
-            padding=[
-                ("selected", [20, 10]),
-                ("active", [20, 10]),
-                ("!selected", [20, 10])
-            ],
-            focuscolor=[("focus", "")]
-        )
-        
-        # =================================================================
-        # FRAMES
-        # =================================================================
+            background=[("selected", "#A8C3B1")],
+            foreground=[("selected", "#1F2A24")],
+            padding=[("selected", (18, 8))],   # identique pour onglet actif
+            relief=[("selected", "flat")],
+            focuscolor=[("focus", "")],        # désactive le focus pointillé
+            bordercolor=[("focus", "")],
+            lightcolor=[("focus", "")],
+            darkcolor=[("focus", "")]
+)
+
+    
+
+    # Frames
         style.configure(
             "TFrame",
-            background=colors['bg_primary']
-        )
-        
-        style.configure(
-            "Card.TFrame",
-            background=colors['white'],
-            relief="flat"
-        )
+            background="#FAFBFA"
+    )
 
         style.configure(
             "TLabelframe",
-            background=colors['bg_primary'],
-            foreground=colors['accent_primary'],
-            bordercolor=colors['border'],
-            lightcolor=colors['border_light'],
-            darkcolor=colors['border'],
-            borderwidth=2,
-            relief="groove"
-        )
+            background="#FAFBFA",
+            foreground="#2F3E36",
+            font=("Helvetica", 10, "bold")
+    )
 
         style.configure(
             "TLabelframe.Label",
-            background=colors['bg_primary'],
-            foreground=colors['accent_dark'],
-            font=("Segoe UI", 10, "bold"),
-            padding=[5, 2]
-        )
-        
-        # =================================================================
-        # LABELS
-        # =================================================================
+            background="#FAFBFA",
+            foreground="#2F3E36"
+    )
+
+    # Labels
         style.configure(
             "TLabel",
-            background=colors['bg_primary'],
-            foreground=colors['text_primary'],
-            font=("Segoe UI", 10)
-        )
+            background="#FAFBFA",
+            foreground="#2F3E36",
+            font=("Helvetica", 10)
+    )
 
         style.configure(
             "Header.TLabel",
-            font=("Segoe UI", 13, "bold"),
-            foreground=colors['accent_dark'],
-            background=colors['bg_primary']
-        )
-        
-        style.configure(
-            "SubHeader.TLabel",
-            font=("Segoe UI", 11, "bold"),
-            foreground=colors['text_secondary'],
-            background=colors['bg_primary']
-        )
-        
-        style.configure(
-            "Muted.TLabel",
-            font=("Segoe UI", 9),
-            foreground=colors['text_muted'],
-            background=colors['bg_primary']
-        )
-        
-        # =================================================================
-        # BOUTONS - Style moderne avec effets hover
-        # =================================================================
+            font=("Helvetica", 12, "bold"),
+            foreground="#2F3E36",
+            background="#FAFBFA"
+    )
+
+    # Boutons
         style.configure(
             "TButton",
-            background=colors['accent_primary'],
-            foreground=colors['white'],
-            font=("Segoe UI", 10, "bold"),
-            padding=[12, 8],
-            borderwidth=0,
-            focuscolor="",
-            anchor="center"
-        )
+            background="#A8C3B1",
+            foreground="#1F2A24",
+            font=("Helvetica", 9, "bold"),
+            padding=6,
+            borderwidth=0
+    )
 
         style.map(
             "TButton",
             background=[
-                ("pressed", colors['accent_dark']),
-                ("active", colors['accent_hover']),
-                ("disabled", colors['bg_accent'])
-            ],
-            foreground=[
-                ("disabled", colors['text_muted'])
-            ],
-            relief=[
-                ("pressed", "flat"),
-                ("!pressed", "flat")
-            ]
-        )
-        
-        # Bouton secondaire (outline style)
-        style.configure(
-            "Secondary.TButton",
-            background=colors['bg_primary'],
-            foreground=colors['accent_primary'],
-            font=("Segoe UI", 10),
-            padding=[12, 8],
-            borderwidth=2,
-            relief="solid"
-        )
-        
-        style.map(
-            "Secondary.TButton",
-            background=[
-                ("active", colors['bg_accent']),
-                ("pressed", colors['accent_light'])
-            ],
-            foreground=[
-                ("pressed", colors['white'])
-            ]
-        )
-        
-        # Bouton accent/action
-        style.configure(
-            "Accent.TButton",
-            background=colors['success'],
-            foreground=colors['white'],
-            font=("Segoe UI", 10, "bold"),
-            padding=[12, 8]
-        )
-        
-        style.map(
-            "Accent.TButton",
-            background=[
-                ("active", "#5AAF7E"),
-                ("pressed", "#3A8B5E")
-            ]
-        )
-        
-        # =================================================================
-        # COMBOBOX - Style moderne
-        # =================================================================
-        style.configure(
-            "TCombobox",
-            background=colors['white'],
-            foreground=colors['text_primary'],
-            fieldbackground=colors['white'],
-            selectbackground=colors['accent_light'],
-            selectforeground=colors['white'],
-            bordercolor=colors['border'],
-            arrowcolor=colors['accent_primary'],
-            padding=[8, 6],
-            font=("Segoe UI", 10)
-        )
-        
-        style.map(
-            "TCombobox",
-            fieldbackground=[
-                ("readonly", colors['white']),
-                ("disabled", colors['bg_secondary'])
-            ],
-            foreground=[
-                ("readonly", colors['text_primary']),
-                ("disabled", colors['text_muted'])
-            ],
-            background=[
-                ("active", colors['accent_light']),
-                ("pressed", colors['accent_primary'])
-            ],
-            bordercolor=[
-                ("focus", colors['accent_primary']),
-                ("hover", colors['accent_light'])
-            ],
-            arrowcolor=[
-                ("disabled", colors['text_muted'])
-            ]
-        )
-        
-        # Style for dropdown list
-        self.root.option_add('*TCombobox*Listbox.background', colors['white'])
-        self.root.option_add('*TCombobox*Listbox.foreground', colors['text_primary'])
-        self.root.option_add('*TCombobox*Listbox.selectBackground', colors['accent_primary'])
-        self.root.option_add('*TCombobox*Listbox.selectForeground', colors['white'])
-        self.root.option_add('*TCombobox*Listbox.font', ('Segoe UI', 10))
-        
-        # =================================================================
-        # ENTRY - Champs de texte modernes
-        # =================================================================
-        style.configure(
-            "TEntry",
-            fieldbackground=colors['white'],
-            foreground=colors['text_primary'],
-            bordercolor=colors['border'],
-            lightcolor=colors['border_light'],
-            insertcolor=colors['accent_primary'],
-            padding=[8, 6],
-            font=("Segoe UI", 10)
-        )
-        
-        style.map(
-            "TEntry",
-            bordercolor=[
-                ("focus", colors['accent_primary'])
-            ],
-            lightcolor=[
-                ("focus", colors['accent_light'])
-            ]
-        )
-        
-        # =================================================================
-        # SCALE (Sliders) - Style moderne
-        # =================================================================
-        style.configure(
-            "TScale",
-            background=colors['bg_primary'],
-            troughcolor=colors['border_light'],
-            sliderlength=20,
-            sliderthickness=20
-        )
-        
-        style.configure(
-            "Horizontal.TScale",
-            background=colors['bg_primary'],
-            troughcolor=colors['bg_accent'],
-            sliderrelief="flat"
-        )
-        
-        style.map(
-            "Horizontal.TScale",
-            background=[
-                ("active", colors['accent_hover'])
-            ]
-        )
-        
-        # =================================================================
-        # SCROLLBAR - Style minimaliste moderne
-        # =================================================================
-        style.configure(
-            "Vertical.TScrollbar",
-            background=colors['bg_accent'],
-            troughcolor=colors['bg_secondary'],
-            bordercolor=colors['bg_secondary'],
-            arrowcolor=colors['accent_primary'],
-            relief="flat",
-            width=12
-        )
-        
-        style.map(
-            "Vertical.TScrollbar",
-            background=[
-                ("active", colors['accent_light']),
-                ("pressed", colors['accent_primary'])
-            ]
-        )
-        
-        style.configure(
-            "Horizontal.TScrollbar",
-            background=colors['bg_accent'],
-            troughcolor=colors['bg_secondary'],
-            bordercolor=colors['bg_secondary'],
-            arrowcolor=colors['accent_primary'],
-            relief="flat",
-            width=12
-        )
-        
-        style.map(
-            "Horizontal.TScrollbar",
-            background=[
-                ("active", colors['accent_light']),
-                ("pressed", colors['accent_primary'])
-            ]
-        )
-        
-        # =================================================================
-        # TREEVIEW - Table moderne
-        # =================================================================
-        style.configure(
-            "Treeview",
-            background=colors['white'],
-            foreground=colors['text_primary'],
-            fieldbackground=colors['white'],
-            rowheight=28,
-            font=("Segoe UI", 10)
-        )
-        
-        style.configure(
-            "Treeview.Heading",
-            background=colors['accent_primary'],
-            foreground=colors['white'],
-            font=("Segoe UI", 10, "bold"),
-            padding=[8, 6],
-            relief="flat"
-        )
-        
-        style.map(
-            "Treeview.Heading",
-            background=[
-                ("active", colors['accent_dark'])
-            ]
-        )
-        
-        style.map(
-            "Treeview",
-            background=[
-                ("selected", colors['accent_light'])
-            ],
-            foreground=[
-                ("selected", colors['white'])
-            ]
-        )
-        
-        # =================================================================
-        # SEPARATOR
-        # =================================================================
-        style.configure(
-            "TSeparator",
-            background=colors['border_light']
-        )
-        
-        # =================================================================
-        # PROGRESSBAR
-        # =================================================================
-        style.configure(
-            "TProgressbar",
-            background=colors['accent_primary'],
-            troughcolor=colors['bg_accent'],
-            bordercolor=colors['border'],
-            lightcolor=colors['accent_light'],
-            darkcolor=colors['accent_dark']
-        )
-        
-        # =================================================================
-        # CHECKBUTTON & RADIOBUTTON
-        # =================================================================
-        style.configure(
-            "TCheckbutton",
-            background=colors['bg_primary'],
-            foreground=colors['text_primary'],
-            font=("Segoe UI", 10),
-            focuscolor=""
-        )
-        
-        style.map(
-            "TCheckbutton",
-            background=[
-                ("active", colors['bg_secondary'])
-            ],
-            indicatorcolor=[
-                ("selected", colors['accent_primary'])
-            ]
-        )
-        
-        style.configure(
-            "TRadiobutton",
-            background=colors['bg_primary'],
-            foreground=colors['text_primary'],
-            font=("Segoe UI", 10),
-            focuscolor=""
-        )
-        
-        style.map(
-            "TRadiobutton",
-            background=[
-                ("active", colors['bg_secondary'])
-            ],
-            indicatorcolor=[
-                ("selected", colors['accent_primary'])
-            ]
-        )
+                ("active", "#C6DDD1"),
+                ("pressed", "#7FA892")
+        ]
+    )
 
+    # Scrollbar
+        style.configure(
+            "Vertical.TScrollbar",
+            background="#DDEAE2",
+            troughcolor="#F4F7F4"
+    )
     
     def create_menu(self):
-        """Crée la barre de menu."""
         menubar = tk.Menu(self.root)
         self.root.config(menu=menubar)
         
@@ -530,15 +183,13 @@ class EnvironmentalDataGUI:
         #onglets
         self.notebook = ttk.Notebook(main_frame)
         self.notebook.pack(fill=tk.BOTH, expand=True)
-        self.notebook.configure(takefocus=0)  # empêche le focus, plus de pointillés
-
+        self.notebook.configure(takefocus=0) 
 
         self.create_data_tab()
         self.create_filter_tab()
         self.create_correlation_tab()
         self.create_spectral_tab()
         self.create_image_tab()
- 
         
         #zone de log en bas
         log_frame = ttk.LabelFrame(main_frame, text="Activity Log", padding=5)
@@ -558,7 +209,6 @@ class EnvironmentalDataGUI:
         
         ttk.Separator(left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
 
-        
         ttk.Label(left_frame, text="━━ Import ━━", font=('Helvetica', 9, 'bold')).pack(anchor=tk.W, pady=(0, 5))
         ttk.Button(left_frame, text="Import CSV", command=self.load_csv_dialog).pack(fill=tk.X, pady=2)
         ttk.Button(left_frame, text="Load Data from Database", command=self.load_data_from_db).pack(fill=tk.X, pady=2)
@@ -582,7 +232,6 @@ class EnvironmentalDataGUI:
         right_frame = ttk.LabelFrame(tab, text="Data overview", padding=10)
         right_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
-        # Columns with Date and Time
         columns = ('ID', 'Date', 'Time', 'CO', 'NO2', 'Temperature', 'Humidity')
         self.data_tree = ttk.Treeview(right_frame, columns=columns, show='headings', height=15)
         
@@ -602,7 +251,7 @@ class EnvironmentalDataGUI:
         vsb.grid(row=0, column=1, sticky='ns')
         hsb.grid(row=1, column=0, sticky='ew')
         
-        # Buttons for CRUD operations
+        #BOuttons for CRUD operations
         btn_frame = ttk.Frame(right_frame)
         btn_frame.grid(row=2, column=0, columnspan=2, sticky='ew', pady=(10, 0))
         
@@ -644,7 +293,6 @@ class EnvironmentalDataGUI:
         self.window_label.pack()
         self.window_size.configure(command=lambda v: self.window_label.configure(text=f"{int(float(v))}"))
         
-        #seuil
         ttk.Label(left_frame, text="Min Threshold:").pack(anchor=tk.W, pady=(10, 0))
         self.threshold_min = ttk.Entry(left_frame)
         self.threshold_min.insert(0, "0")
@@ -658,32 +306,28 @@ class EnvironmentalDataGUI:
         ttk.Button(left_frame, text="Apply Filter", command=self.apply_filter).pack(fill=tk.X, pady=20)
         ttk.Button(left_frame, text="Reset", command=self.reset_filter).pack(fill=tk.X, pady=5)
         ttk.Button(left_frame, text="Save Filtered Data to DB", command=self.save_filtered_data).pack(fill=tk.X, pady=5)
-        ttk.Button(left_frame, text="View Filter History", command=self.view_filter_history).pack(fill=tk.X, pady=5)
 
-        # Conteneur pour le tableau et la visualisation (même taille)
         content_frame = ttk.Frame(tab)
         content_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(10, 0))
         
-        # Configurer le grid pour partager l'espace équitablement
         content_frame.grid_columnconfigure(0, weight=1, uniform="equal")
         content_frame.grid_columnconfigure(1, weight=1, uniform="equal")
         content_frame.grid_rowconfigure(0, weight=1)
 
-        # Frame pour le tableau filtré
         filtered_frame = ttk.LabelFrame(content_frame, text="Filtered Data Comparison", padding=10)
         filtered_frame.grid(row=0, column=0, sticky='nsew', padx=(0, 5))
 
-        # Créer le Treeview avec colonnes pour original et filtré
-        filter_columns = ('Index', 'Original', 'Filtered')
+        #Treeview
+        filter_columns = ('ID', 'Original', 'Filtered')
         self.filtered_tree = ttk.Treeview(filtered_frame, columns=filter_columns, show='headings', height=15)
-        self.filtered_tree.heading('Index', text='Index')
+        self.filtered_tree.heading('ID', text='ID')
         self.filtered_tree.heading('Original', text='Original Value')
         self.filtered_tree.heading('Filtered', text='Filtered Value')
-        self.filtered_tree.column('Index', width=80)
+        self.filtered_tree.column('ID', width=80)
         self.filtered_tree.column('Original', width=120)
         self.filtered_tree.column('Filtered', width=120)
 
-        # Scrollbars
+        #Scrollbars
         vsb_f = ttk.Scrollbar(filtered_frame, orient=tk.VERTICAL, command=self.filtered_tree.yview)
         hsb_f = ttk.Scrollbar(filtered_frame, orient=tk.HORIZONTAL, command=self.filtered_tree.xview)
         self.filtered_tree.configure(yscrollcommand=vsb_f.set, xscrollcommand=hsb_f.set)
@@ -695,7 +339,6 @@ class EnvironmentalDataGUI:
         filtered_frame.grid_rowconfigure(0, weight=1)
         filtered_frame.grid_columnconfigure(0, weight=1)
 
-        # Frame pour la visualisation (même taille que le tableau)
         right_frame = ttk.LabelFrame(content_frame, text="Preview", padding=10)
         right_frame.grid(row=0, column=1, sticky='nsew', padx=(5, 0))
         
@@ -716,8 +359,7 @@ class EnvironmentalDataGUI:
         self.corr_method = ttk.Combobox(left_frame, values=['pearson', 'spearman'])
         self.corr_method.set('pearson')
         self.corr_method.pack(fill=tk.X, pady=5)
-        
-        #variables pour scatter
+
         ttk.Label(left_frame, text="Variable X:").pack(anchor=tk.W, pady=(10, 0))
         self.corr_var_x = ttk.Combobox(left_frame, values=self.display_columns)
         self.corr_var_x.set(self.display_columns[0])
@@ -732,7 +374,6 @@ class EnvironmentalDataGUI:
         ttk.Button(left_frame, text="Show Scatter", command=self.show_scatter_plot).pack(fill=tk.X, pady=5)
         ttk.Button(left_frame, text="Save to Database", command=self.save_correlations).pack(fill=tk.X, pady=5)
         
-        # Résultats
         ttk.Separator(left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
         ttk.Label(left_frame, text="Results:", font=('Helvetica', 10, 'bold')).pack(anchor=tk.W)
         self.corr_result_label = ttk.Label(left_frame, text="", justify=tk.LEFT, wraplength=200)
@@ -747,7 +388,6 @@ class EnvironmentalDataGUI:
         
         toolbar_frame = ttk.Frame(right_frame)
         toolbar_frame.pack(fill=tk.X)
-        NavigationToolbar2Tk(self.corr_canvas, toolbar_frame)
     
     #ONGLET 4: ANALYSE SPECTRALE
     
@@ -755,29 +395,27 @@ class EnvironmentalDataGUI:
         tab = ttk.Frame(self.notebook, padding=10)
         self.notebook.add(tab, text="Spectrum Analysis")
         
-        # Conteneur pour la sidebar avec scroll (comme image processing)
+        # Conteneur pour la sidebar avec scroll
         sidebar_container = ttk.Frame(tab, width=220)
         sidebar_container.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
         sidebar_container.pack_propagate(False)  # Garder la largeur fixe
         
-        # Canvas pour le scroll
+        #canvas pour le scroll
         spectral_canvas_scroll = tk.Canvas(sidebar_container, highlightthickness=0, width=200)
         spectral_scrollbar = ttk.Scrollbar(sidebar_container, orient="vertical", command=spectral_canvas_scroll.yview)
         
-        # Frame scrollable à l'intérieur du canvas
+        #Frame scrollable à l'intérieur du canvas
         left_frame = ttk.LabelFrame(spectral_canvas_scroll, text="Controls", padding=10)
         
-        # Configurer le scroll
         spectral_canvas_scroll.configure(yscrollcommand=spectral_scrollbar.set)
         
-        # Pack scrollbar et canvas
+        #pack scrollbar et canvas
         spectral_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         spectral_canvas_scroll.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
-        # Créer une fenêtre dans le canvas pour le frame
         spectral_canvas_frame = spectral_canvas_scroll.create_window((0, 0), window=left_frame, anchor="nw")
         
-        # Fonction pour mettre à jour la région de scroll
+        #Fonction pour mettre à jour la région de scroll
         def configure_spectral_scroll_region(event):
             spectral_canvas_scroll.configure(scrollregion=spectral_canvas_scroll.bbox("all"))
         
@@ -787,7 +425,7 @@ class EnvironmentalDataGUI:
         left_frame.bind("<Configure>", configure_spectral_scroll_region)
         spectral_canvas_scroll.bind("<Configure>", configure_spectral_canvas_width)
         
-        # Activer le scroll avec la molette de la souris
+        #activer le scroll avec la molette de la souris
         def on_spectral_mousewheel(event):
             spectral_canvas_scroll.yview_scroll(int(-1*(event.delta/120)), "units")
         
@@ -797,39 +435,33 @@ class EnvironmentalDataGUI:
         def unbind_spectral_mousewheel(event):
             spectral_canvas_scroll.unbind_all("<MouseWheel>")
         
-        # Lier/délier le scroll quand la souris entre/sort de la zone
         spectral_canvas_scroll.bind("<Enter>", bind_spectral_mousewheel)
         spectral_canvas_scroll.bind("<Leave>", unbind_spectral_mousewheel)
         
-        # === SECTION 1: Variable Selection ===
-        ttk.Label(left_frame, text="1. Select Variable", font=('Helvetica', 10, 'bold')).pack(anchor=tk.W)
+        ttk.Label(left_frame, text="Variable", font=('Helvetica', 10, 'bold')).pack(anchor=tk.W)
         self.spectral_var = ttk.Combobox(left_frame, values=self.display_columns, state='readonly', width=20)
         self.spectral_var.set(self.display_columns[0])
         self.spectral_var.pack(fill=tk.X, pady=(0, 10))
         
-        # === SECTION 2: Frequency Representation Type ===
         ttk.Separator(left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=5)
-        ttk.Label(left_frame, text="2. Representation Type", font=('Helvetica', 10, 'bold')).pack(anchor=tk.W, pady=(5, 5))
-        self.spectral_repr_type = ttk.Combobox(left_frame, values=['FFT Amplitude', 'Power Spectrum'], state='readonly', width=20)
+        ttk.Label(left_frame, text="Spectrum tools", font=('Helvetica', 10, 'bold')).pack(anchor=tk.W, pady=(5, 5))
+        self.spectral_repr_type = ttk.Combobox(left_frame, values=['FFT Fast Fourier Transform', 'Power Spectrum'], state='readonly', width=20)
         self.spectral_repr_type.set('Power Spectrum')
         self.spectral_repr_type.pack(fill=tk.X, pady=(0, 10))
         
-        # === SECTION 3: Frequency Filters ===
         ttk.Separator(left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=5)
-        ttk.Label(left_frame, text="3. Frequency Filters (optional)", font=('Helvetica', 10, 'bold')).pack(anchor=tk.W, pady=(5, 5))
+        ttk.Label(left_frame, text="Frequency Filters", font=('Helvetica', 10, 'bold')).pack(anchor=tk.W, pady=(5, 5))
         
-        # Filter type
-        # Added 'Band-stop' (coupe-bande) option
         self.spectral_filter_type = ttk.Combobox(left_frame, values=['No Filter', 'Low-pass', 'High-pass', 'Band-pass', 'Band-stop'], state='readonly', width=20)
         self.spectral_filter_type.set('No Filter')
         self.spectral_filter_type.pack(fill=tk.X, pady=5)
         self.spectral_filter_type.bind('<<ComboboxSelected>>', self._update_filter_fields)
         
-        # Filter parameters frame
+        #Filter parameters frame
         self.filter_params_frame = ttk.Frame(left_frame)
         self.filter_params_frame.pack(fill=tk.X, pady=5)
         
-        # Cutoff frequency (for low-pass and high-pass)
+        #cutoff frequency for low-pass and high-pass
         self.cutoff_frame = ttk.Frame(self.filter_params_frame)
         self.cutoff_frame.pack(fill=tk.X)
         ttk.Label(self.cutoff_frame, text="Cutoff (Hz):").pack(side=tk.LEFT)
@@ -847,14 +479,12 @@ class EnvironmentalDataGUI:
         self.high_cutoff = ttk.Entry(self.bandpass_frame, width=8)
         self.high_cutoff.insert(0, "0.1")
         self.high_cutoff.grid(row=1, column=1, padx=5, pady=2)
-        
-        # === SECTION 4: Analysis ===
+
         ttk.Separator(left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
-        ttk.Label(left_frame, text="4. Run Analysis", font=('Helvetica', 10, 'bold')).pack(anchor=tk.W, pady=(5, 5))
-        ttk.Button(left_frame, text="▶ Run Analysis", command=self.run_spectral_analysis).pack(fill=tk.X, pady=5)
+        ttk.Label(left_frame, text="Analysis", font=('Helvetica', 10, 'bold')).pack(anchor=tk.W, pady=(5, 5))
+        ttk.Button(left_frame, text="Run Analysis", command=self.run_spectral_analysis).pack(fill=tk.X, pady=5)
         ttk.Button(left_frame, text="Reset", command=self.reset_spectral_analysis).pack(fill=tk.X, pady=5)
         
-        # === Results Section ===
         ttk.Separator(left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
         ttk.Label(left_frame, text="Results", font=('Helvetica', 10, 'bold')).pack(anchor=tk.W)
         self.spectral_results = scrolledtext.ScrolledText(left_frame, height=6, width=25, font=('Consolas', 9))
@@ -862,21 +492,17 @@ class EnvironmentalDataGUI:
         
         ttk.Button(left_frame, text="Save to Database", command=self.save_spectral_results).pack(fill=tk.X, pady=10)
         
-        # === Right Frame - Spectrum Plot ===
         right_frame = ttk.LabelFrame(tab, text="Frequency Analysis", padding=10)
         right_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
-        # Reduce figure size so left controls/buttons remain visible on small windows
         self.spectral_fig = Figure(figsize=(6, 4), dpi=100)
         self.spectral_canvas = FigureCanvasTkAgg(self.spectral_fig, right_frame)
         self.spectral_canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
         
         toolbar_frame = ttk.Frame(right_frame)
         toolbar_frame.pack(fill=tk.X)
-        NavigationToolbar2Tk(self.spectral_canvas, toolbar_frame)
     
     def _update_filter_fields(self, event=None):
-        """Update filter parameter fields based on selected filter type"""
         filter_type = self.spectral_filter_type.get()
         
         # Hide all frames first
@@ -885,12 +511,11 @@ class EnvironmentalDataGUI:
         
         # Show appropriate frame
         if filter_type == 'No Filter':
-            # No parameters needed
+            #No parameters needed
             pass
         elif filter_type in ['Low-pass', 'High-pass']:
             self.cutoff_frame.pack(fill=tk.X)
         elif filter_type in ['Band-pass', 'Band-stop']:
-            # Show two fields for low and high cutoff (used by band-pass and band-stop)
             self.bandpass_frame.pack(fill=tk.X)
     
     #ONGLET 5: TRAITEMENT D'IMAGES
@@ -899,26 +524,20 @@ class EnvironmentalDataGUI:
         tab = ttk.Frame(self.notebook, padding=10)
         self.notebook.add(tab, text="Image Processing")
 
-        # Conteneur pour la sidebar avec scroll
         sidebar_container = ttk.Frame(tab, width=220)
         sidebar_container.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
         sidebar_container.pack_propagate(False)  # Garder la largeur fixe
         
-        # Canvas pour le scroll
         canvas = tk.Canvas(sidebar_container, highlightthickness=0, width=200)
         scrollbar = ttk.Scrollbar(sidebar_container, orient="vertical", command=canvas.yview)
         
-        # Frame scrollable à l'intérieur du canvas
         left_frame = ttk.LabelFrame(canvas, text="Processing", padding=10)
         
-        # Configurer le scroll
         canvas.configure(yscrollcommand=scrollbar.set)
         
-        # Pack scrollbar et canvas
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
-        # Créer une fenêtre dans le canvas pour le frame
         canvas_frame = canvas.create_window((0, 0), window=left_frame, anchor="nw")
         
         # Fonction pour mettre à jour la région de scroll
@@ -931,7 +550,6 @@ class EnvironmentalDataGUI:
         left_frame.bind("<Configure>", configure_scroll_region)
         canvas.bind("<Configure>", configure_canvas_width)
         
-        # Activer le scroll avec la molette de la souris
         def on_mousewheel(event):
             canvas.yview_scroll(int(-1*(event.delta/120)), "units")
         
@@ -941,20 +559,16 @@ class EnvironmentalDataGUI:
         def unbind_mousewheel(event):
             canvas.unbind_all("<MouseWheel>")
         
-        # Lier/délier le scroll quand la souris entre/sort de la zone
         canvas.bind("<Enter>", bind_mousewheel)
         canvas.bind("<Leave>", unbind_mousewheel)
 
-        # --- Section: Load Image ---
         ttk.Button(left_frame, text="Load Image", command=self.load_image).pack(fill=tk.X, pady=3)
         ttk.Button(left_frame, text="Load Image from DB", command=self.load_image_from_db).pack(fill=tk.X, pady=3)
 
         ttk.Separator(left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=8)
         
-        # --- Section: Processing avec Dropdown ---
         ttk.Label(left_frame, text="Processing:", font=('Helvetica', 10, 'bold')).pack(anchor=tk.W)
         
-        # Mapping des noms affichés vers les clés de traitement
         self.processing_options = {
             'Grayscale Conversion': 'grayscale',
             'Gaussian Blur': 'blur',
@@ -964,7 +578,6 @@ class EnvironmentalDataGUI:
             'Sobel Filter': 'sobel'
         }
         
-        # Dropdown menu pour sélection du traitement
         self.processing_combo = ttk.Combobox(
             left_frame, 
             values=list(self.processing_options.keys()),
@@ -974,21 +587,17 @@ class EnvironmentalDataGUI:
         self.processing_combo.set('Grayscale Conversion')
         self.processing_combo.pack(fill=tk.X, pady=5)
         
-        # Bouton Apply pour appliquer le traitement sélectionné
         ttk.Button(left_frame, text="Apply Processing", command=self.apply_selected_processing).pack(fill=tk.X, pady=3)
         
         ttk.Separator(left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=8)
         
-        # --- Section: Parameters ---
         ttk.Label(left_frame, text="Parameters:", font=('Helvetica', 10, 'bold')).pack(anchor=tk.W)
         
-        # Paramètre flou (KERNEL IMPAIR UNIQUEMENT)
         ttk.Label(left_frame, text="Blur Kernel:").pack(anchor=tk.W, pady=(5, 0))
         
         kernel_frame = ttk.Frame(left_frame)
         kernel_frame.pack(fill=tk.X)
         
-        # Créer le label AVANT le scale pour éviter l'erreur de callback
         self.blur_kernel_label = ttk.Label(kernel_frame, text="5", width=3)
         self.current_blur_kernel = 5
         
@@ -1004,7 +613,6 @@ class EnvironmentalDataGUI:
         
         self.blur_kernel_label.pack(side=tk.RIGHT, padx=5)
 
-        # Seuils Canny
         ttk.Label(left_frame, text="Canny Threshold 1:").pack(anchor=tk.W, pady=(5, 0))
         
         thresh1_frame = ttk.Frame(left_frame)
@@ -1033,12 +641,10 @@ class EnvironmentalDataGUI:
         
         ttk.Separator(left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=8)
         
-        # --- Section: Actions ---
         ttk.Button(left_frame, text="Reset", command=self.reset_image).pack(fill=tk.X, pady=3)
         ttk.Button(left_frame, text="Save", command=self.save_processed_image).pack(fill=tk.X, pady=3)
         ttk.Button(left_frame, text="Store Metadata", command=self.store_processed_image_metadata).pack(fill=tk.X, pady=3)
         
-        # --- Zone d'affichage à droite ---
         right_frame = ttk.Frame(tab)
         right_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
@@ -1053,14 +659,11 @@ class EnvironmentalDataGUI:
         self.proc_image_label.pack(fill=tk.BOTH, expand=True)
     
     def apply_selected_processing(self):
-        """Applique le traitement sélectionné dans le dropdown menu"""
         selected = self.processing_combo.get()
         if selected in self.processing_options:
             processing_key = self.processing_options[selected]
             self.apply_image_processing(processing_key)
-    
-   
-    
+      
     #FONCTIONS UTILITAIRES
     
     def create_scrollable_frame(self, parent, width=200):
@@ -1089,7 +692,6 @@ class EnvironmentalDataGUI:
         self.log_text.see(tk.END)
     
     def update_stats(self):
-  #mise à jour des stats affichées
         if self.data is not None and len(self.data) > 0 and 'temperature' in self.data.columns:
             stats = f"""
 
@@ -1105,12 +707,10 @@ Humidity:
             self.stats_label.configure(text="No Data\n\nLoad a CSV file\nto get started.")
     
     def update_data_tree(self):
-        # Effacer les anciennes données
         for item in self.data_tree.get_children():
             self.data_tree.delete(item)
         
         if self.data is not None and len(self.data) > 0:
-            # Afficher tous les enregistrements (avec date et time)
             for idx, row in self.data.iterrows():
                 values = (
                     row.get('id', idx),
@@ -1122,8 +722,6 @@ Humidity:
                     f"{row.get('humidity', 0):.1f}" if pd.notna(row.get('humidity')) else ''
                 )
                 self.data_tree.insert('', tk.END, values=values)
-    
-    #FONCTIONS DONNÉES 
     
     def initialize_database(self):
         try:
@@ -1145,7 +743,6 @@ Humidity:
             else:
                 self.log(f"Data Loaded: {len(self.data)} Records")
 
-        # Mise à jour de l'affichage
             self.update_stats()
             self.update_data_tree()
             print("Columns in DataFrame:", self.data.columns.tolist())
@@ -1167,12 +764,10 @@ Humidity:
         
         if file_path:
             try:
-                #assurer que les tables existnt
                 self.db.connect()
                 self.db.create_tables()
                 self.db.disconnect()
                 
-                #charger et nettoyer les données
                 processor = DataProcessor()
                 processor.load_data_from_csv(file_path)
                 processor.clean_data()
@@ -1187,7 +782,6 @@ Humidity:
                 messagebox.showerror("Error", f"Unable to load CSV: {str(e)}")
     
     def save_to_db(self):
-      #sauvegarde les données dans la base
         if self.data is not None:
             try:
                 processor = DataProcessor()
@@ -1218,8 +812,6 @@ Humidity:
                 messagebox.showerror("Error", f"Unable to clear the database: {str(e)}")
     
     def add_row(self):
-        """Add a new row to the database"""
-        # Create a dialog window for adding data
         dialog = tk.Toplevel(self.root)
         dialog.title("Add New Row")
         dialog.geometry("300x350")
@@ -1266,7 +858,6 @@ Humidity:
         ttk.Button(dialog, text="Save", command=save_new_row).grid(row=len(fields), column=0, columnspan=2, pady=20)
     
     def edit_row(self):
-        """Edit the selected row"""
         selected = self.data_tree.selection()
         if not selected:
             messagebox.showwarning("Warning", "Please select a row to edit")
@@ -1282,11 +873,9 @@ Humidity:
         dialog.transient(self.root)
         dialog.grab_set()
         
-        # Fields now include Date and Time
         fields = ['Date', 'Time', 'CO', 'NO2', 'Temperature', 'Humidity']
         entries = {}
         
-        # Map field indices to values array (ID=0, Date=1, Time=2, CO=3, NO2=4, Temp=5, Humidity=6)
         field_indices = {'Date': 1, 'Time': 2, 'CO': 3, 'NO2': 4, 'Temperature': 5, 'Humidity': 6}
         
         for i, field in enumerate(fields):
@@ -1328,7 +917,6 @@ Humidity:
         ttk.Button(dialog, text="Save", command=save_edit).grid(row=len(fields), column=0, columnspan=2, pady=20)
     
     def delete_row(self):
-        """Delete the selected row"""
         selected = self.data_tree.selection()
         if not selected:
             messagebox.showwarning("Warning", "Please select a row to delete")
@@ -1351,7 +939,6 @@ Humidity:
                 messagebox.showerror("Error", f"Failed to delete row: {e}")
     
     def export_data(self):
-        #Exporte les données en CSV
         if self.data is None or len(self.data) == 0:
             messagebox.showwarning("Warning", "No data to export.\nPlease import a CSV file first.")
             return
@@ -1366,7 +953,6 @@ Humidity:
             messagebox.showinfo("Success", f"Data exported to:\n{file_path}")
     
     def show_db_stats(self):
-        #Afficher les statisde la base de données
         try:
             self.db.connect()
             stats = self.db.get_statistics()
@@ -1385,7 +971,6 @@ Humidity:
             messagebox.showerror("Error", str(e))
     
     def clean_data(self):
-        #Nettoie les données
         if self.data is not None:
             try:
                 processor = DataProcessor()
@@ -1401,7 +986,6 @@ Humidity:
     #FONCTIONS FILTRAGE 
     
     def apply_filter(self):
-        """Applique le filtre sélectionné (Moving Average ou Thresholding)."""
         if self.data is None:
             messagebox.showwarning("Warning", "No data loaded")
             return
@@ -1414,49 +998,44 @@ Humidity:
         original_series = self.data[df_column].dropna()
         original = original_series.values
         
-        # Appliquer le filtre selon le type
         if filter_type == 'Moving Average':
-            # Filtrage par moyenne mobile centrée
+            #filtrage par moyenne mobile centrée
             window = int(float(self.window_size.get()))
-            # Appliquer la moyenne mobile centrée
+            #appliquer la moyenne mobile centrée
             filtered_series = pd.Series(original).rolling(window=window, center=True).mean()
-            # Remplir les valeurs NaN aux extrémités
+            #remplir les valeurs NaN aux extrémités
             filtered_series = filtered_series.fillna(method='bfill').fillna(method='ffill')
             filtered = filtered_series.values
             title = f"Moving Average (window={window})"
-            filter_desc = f"Moyenne mobile avec fenêtre de taille {window}"
+            filter_desc = f"Moving Average with window size {window}"
             
         elif filter_type == 'Threshold Filter':
-            # Filtrage par seuillage
             try:
                 min_val = float(self.threshold_min.get())
                 max_val = float(self.threshold_max.get())
             except ValueError:
-                messagebox.showerror("Error", "Veuillez entrer des valeurs numériques valides pour les seuils.")
+                messagebox.showerror("Error", "Please enter valid numeric values for the thresholds.")
                 return
             
             if min_val >= max_val:
-                messagebox.showerror("Error", "Le seuil minimum doit être inférieur au seuil maximum.")
+                messagebox.showerror("Error", "The minimum threshold must be less than the maximum threshold.")
                 return
             
-            # Limiter les valeurs aux seuils définis
             filtered = np.clip(original, min_val, max_val)
             title = f"Thresholding [{min_val}, {max_val}]"
-            filter_desc = f"Seuillage entre {min_val} et {max_val}"
+            filter_desc = f"Thresholding between {min_val} et {max_val}"
         else:
-            messagebox.showwarning("Warning", "Type de filtre non reconnu")
+            messagebox.showwarning("Warning", "Unrecognized filter type")
             return
         
-        # Stocker les données filtrées pour une utilisation ultérieure
+        #stocker les données filtrées 
         self.filtered_data = filtered
         self.original_data = original
         
-        # === 1. AFFICHAGE DU TABLEAU COMPARATIF ===
-        # Effacer l'ancien contenu du tableau
+        #AFFICHAGE DU TABLEAU COMPARATIF 
         for item in self.filtered_tree.get_children():
             self.filtered_tree.delete(item)
         
-        # Afficher TOUTES les valeurs dans le tableau comparatif
         for i in range(len(original)):
             values = (
                 i,
@@ -1465,22 +1044,19 @@ Humidity:
             )
             self.filtered_tree.insert('', tk.END, values=values)
         
-        # === 2. AFFICHAGE DU GRAPHIQUE ===
         self.filter_fig.clear()
         ax = self.filter_fig.add_subplot(111)
         
-        # Tracer les séries (limiter à 500 points pour la lisibilité)
+        #tracer les séries (limiter à 500)
         plot_limit = min(500, len(original))
         x_axis = range(plot_limit)
         
-        # Série originale
         ax.plot(x_axis, original[:plot_limit], 'b-', linewidth=1.5, alpha=0.6, label='Original')
         
-        # Série filtrée
         ax.plot(x_axis, filtered[:plot_limit], 'r-', linewidth=2, alpha=0.8, label='Filtered')
         
         # Mise en forme du graphique
-        ax.set_xlabel('Index', fontsize=9)
+        ax.set_xlabel('ID', fontsize=9)
         ax.set_ylabel(var_selected, fontsize=9)
         ax.set_title(f'{var_selected}: {title}', fontsize=10, fontweight='bold')
         ax.legend(loc='best', fontsize=8)
@@ -1492,28 +1068,23 @@ Humidity:
         self.log(f"Filter Applied: {filter_type} to {var_selected} - {filter_desc}")
     
     def reset_filter(self):
-        """Réinitialise le graphique de filtrage et le tableau."""
-        # Effacer le graphique
         self.filter_fig.clear()
         self.filter_canvas.draw()
         
-        # Effacer le tableau
         for item in self.filtered_tree.get_children():
             self.filtered_tree.delete(item)
         
-        # Réinitialiser les données filtrées stockées
         self.filtered_data = None
         self.original_data = None
         
         self.log("Filtering Reset")
         
     def save_filtered_data(self):
-        """Sauvegarde les données filtrées dans la base de données avec historique complet."""
         if self.data is None or len(self.data) == 0:
             messagebox.showwarning("Warning", "No data loaded to save")
             return
         
-        # Vérifier si des données filtrées existent
+        #vérifier si des données filtrées existent
         if not hasattr(self, 'filtered_data') or self.filtered_data is None:
             messagebox.showwarning("Warning", "Please apply a filter first")
             return
@@ -1522,7 +1093,7 @@ Humidity:
         df_column = self.COLUMN_MAP[var_selected]
         filter_type = self.filter_type.get()
         
-        # Récupérer les paramètres du filtre
+        #récupérer les paramètres du filtre
         window_size = int(self.window_size.get())
         try:
             threshold_min = float(self.threshold_min.get())
@@ -1536,10 +1107,10 @@ Humidity:
         try:
             self.db.connect()
             
-            # Get the indices of non-null values in the original column
+            #Get the indices of non-null values in the original column
             original_series = self.data[df_column].dropna()
             
-            # Stocker chaque ligne filtrée dans l'historique
+            #Stocker chaque ligne filtrée dans l'historq
             saved_count = 0
             for i, (idx, original_value) in enumerate(original_series.items()):
                 if i < len(self.filtered_data):
@@ -1547,7 +1118,7 @@ Humidity:
                     record_id = self.data.loc[idx, 'id']
                     filtered_value = float(self.filtered_data[i])
                     
-                    # Insérer dans l'historique des données filtrées
+                    #insérer dans l'historique des données filtrées
                     self.db.insert_filtered_data(
                         original_record_id=int(record_id),
                         variable_name=var_selected,
@@ -1563,7 +1134,6 @@ Humidity:
             
             self.db.disconnect()
             
-            # Log détaillé du filtre sauvegardé
             filter_params = f"Filter: {filter_type}"
             if filter_type == 'Moving Average':
                 filter_params += f", Window: {window_size}"
@@ -1586,141 +1156,11 @@ Humidity:
             if self.db.connection:
                 self.db.disconnect()
     
-    def view_filter_history(self):
-        """Affiche l'historique des filtres appliqués dans une nouvelle fenêtre."""
-        history_window = tk.Toplevel(self.root)
-        history_window.title("Filter History")
-        history_window.geometry("1000x600")
-        
-        # Frame principal
-        main_frame = ttk.Frame(history_window, padding=10)
-        main_frame.pack(fill=tk.BOTH, expand=True)
-        
-        # Filtres pour l'historique
-        filter_frame = ttk.LabelFrame(main_frame, text="Filter Options", padding=10)
-        filter_frame.pack(fill=tk.X, pady=(0, 10))
-        
-        # Variable filter
-        ttk.Label(filter_frame, text="Variable:").pack(side=tk.LEFT, padx=5)
-        var_filter = ttk.Combobox(filter_frame, values=['All'] + self.display_columns, state="readonly", width=15)
-        var_filter.set('All')
-        var_filter.pack(side=tk.LEFT, padx=5)
-        
-        # Filter type filter
-        ttk.Label(filter_frame, text="Filter Type:").pack(side=tk.LEFT, padx=5)
-        type_filter = ttk.Combobox(filter_frame, values=['All', 'Moving Average', 'Threshold Filter'], state="readonly", width=20)
-        type_filter.set('All')
-        type_filter.pack(side=tk.LEFT, padx=5)
-        
-        # Treeview pour afficher l'historique
-        tree_frame = ttk.Frame(main_frame)
-        tree_frame.pack(fill=tk.BOTH, expand=True)
-        
-        columns = ('ID', 'Record ID', 'Variable', 'Filter Type', 'Window', 'Min', 'Max', 
-                   'Original', 'Filtered', 'Row Index', 'Applied At')
-        history_tree = ttk.Treeview(tree_frame, columns=columns, show='headings', height=20)
-        
-        # Configuration des colonnes
-        history_tree.heading('ID', text='ID')
-        history_tree.heading('Record ID', text='Record ID')
-        history_tree.heading('Variable', text='Variable')
-        history_tree.heading('Filter Type', text='Filter Type')
-        history_tree.heading('Window', text='Window Size')
-        history_tree.heading('Min', text='Min Threshold')
-        history_tree.heading('Max', text='Max Threshold')
-        history_tree.heading('Original', text='Original Value')
-        history_tree.heading('Filtered', text='Filtered Value')
-        history_tree.heading('Row Index', text='Row Index')
-        history_tree.heading('Applied At', text='Applied At')
-        
-        # Largeur des colonnes
-        history_tree.column('ID', width=50)
-        history_tree.column('Record ID', width=80)
-        history_tree.column('Variable', width=100)
-        history_tree.column('Filter Type', width=120)
-        history_tree.column('Window', width=80)
-        history_tree.column('Min', width=80)
-        history_tree.column('Max', width=80)
-        history_tree.column('Original', width=100)
-        history_tree.column('Filtered', width=100)
-        history_tree.column('Row Index', width=80)
-        history_tree.column('Applied At', width=150)
-        
-        # Scrollbars
-        vsb = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=history_tree.yview)
-        hsb = ttk.Scrollbar(tree_frame, orient=tk.HORIZONTAL, command=history_tree.xview)
-        history_tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
-        
-        history_tree.grid(row=0, column=0, sticky='nsew')
-        vsb.grid(row=0, column=1, sticky='ns')
-        hsb.grid(row=1, column=0, sticky='ew')
-        
-        tree_frame.grid_rowconfigure(0, weight=1)
-        tree_frame.grid_columnconfigure(0, weight=1)
-        
-        # Fonction pour charger l'historique
-        def load_history():
-            # Effacer le contenu actuel
-            for item in history_tree.get_children():
-                history_tree.delete(item)
-            
-            try:
-                self.db.connect()
-                
-                # Récupérer les filtres
-                var = None if var_filter.get() == 'All' else var_filter.get()
-                ftype = None if type_filter.get() == 'All' else type_filter.get()
-                
-                history_data = self.db.get_filtered_data_history(variable_name=var, filter_type=ftype, limit=1000)
-                
-                self.db.disconnect()
-                
-                # Afficher les données
-                for row in history_data:
-                    # Format: (id, original_record_id, variable_name, filter_type, window_size,
-                    #          threshold_min, threshold_max, original_value, filtered_value, 
-                    #          row_index, applied_at)
-                    values = (
-                        row[0],  # id
-                        row[1],  # original_record_id
-                        row[2],  # variable_name
-                        row[3],  # filter_type
-                        row[4] if row[4] else '-',  # window_size
-                        f"{row[5]:.2f}" if row[5] is not None else '-',  # threshold_min
-                        f"{row[6]:.2f}" if row[6] is not None else '-',  # threshold_max
-                        f"{row[7]:.2f}" if row[7] is not None else '-',  # original_value
-                        f"{row[8]:.2f}" if row[8] is not None else '-',  # filtered_value
-                        row[9],  # row_index
-                        str(row[10])  # applied_at
-                    )
-                    history_tree.insert('', tk.END, values=values)
-                
-                self.log(f"Filter history loaded: {len(history_data)} records")
-                
-            except Exception as e:
-                messagebox.showerror("Error", f"Unable to load filter history: {e}")
-                if self.db.connection:
-                    self.db.disconnect()
-        
-        # Boutons
-        btn_frame = ttk.Frame(main_frame)
-        btn_frame.pack(fill=tk.X, pady=(10, 0))
-        
-        ttk.Button(btn_frame, text="Refresh", command=load_history).pack(side=tk.LEFT, padx=5)
-        ttk.Button(btn_frame, text="Close", command=history_window.destroy).pack(side=tk.RIGHT, padx=5)
-        
-        # Lier les filtres au rechargement
-        var_filter.bind('<<ComboboxSelected>>', lambda e: load_history())
-        type_filter.bind('<<ComboboxSelected>>', lambda e: load_history())
-        
-        # Charger l'historique initial
-        load_history()
-
-    
+ 
+  
     #FONCTIONS CORRÉLATIONS
     
     def show_correlation_heatmap(self):
-        # la heatmap des corrélations
         if self.data is None:
             messagebox.showwarning("Warning", "No data loaded")
             return
@@ -1735,7 +1175,6 @@ Humidity:
         self.corr_fig.clear()
         ax = self.corr_fig.add_subplot(111)
         
-        # Show complete heatmap without mask (including all correlation values)
         sns.heatmap(corr_matrix, annot=True, fmt='.2f', cmap='RdBu_r',
                    center=0, ax=ax, cbar_kws={'shrink': 0.8}, vmin=-1, vmax=1)
         
@@ -1747,7 +1186,6 @@ Humidity:
         self.log(f"Correlation Heatmap Generated ({method})")
     
     def show_scatter_plot(self):
-        #Affiche un scatter plot entre deux variables
         if self.data is None:
             messagebox.showwarning("Warning", "No data loaded")
             return
@@ -1770,7 +1208,6 @@ Humidity:
         
         corr = self.data[var_x].corr(self.data[var_y])
         
-        # Use display names instead of column names
         display_x = self.corr_var_x.get()
         display_y = self.corr_var_y.get()
         
@@ -1787,7 +1224,6 @@ Humidity:
         self.log(f"Scatter plot: {var_x} vs {var_y} (r={corr:.3f})")
     
     def save_correlations(self):
-        #sauvegarde les corrélations dans la base de données
         try:
             analyzer = CorrelationAnalyzer()
             analyzer.load_data()
@@ -1800,7 +1236,6 @@ Humidity:
     #FONCTIONS ANALYSE SPECTRALE
     
     def run_spectral_analysis(self):
-        """Run FFT analysis with filters applied BEFORE analysis"""
         from scipy.signal import butter, sosfilt
         
         if self.data is None:
@@ -1818,22 +1253,21 @@ Humidity:
                 messagebox.showwarning("Warning", "Not enough data points for analysis")
                 return
             
-            # Remove mean (DC component)
+            #remove mean (DC component)
             signal_original = signal_original - np.mean(signal_original)
             signal_filtered = signal_filtered - np.mean(signal_filtered)
             
-            # ============ APPLY FILTERS BEFORE ANALYSIS ============
+            #APPLY FILTERS 
             filter_info = ""
             filter_type = self.spectral_filter_type.get()
             show_comparison = False
             
-            fs = 1.0  # Sampling frequency (1 sample per hour)
-            nyq = 0.5 * fs  # Nyquist frequency
+            fs = 1.0  #sampling freq (1 sample per hour)
+            nyq = 0.5 * fs  #Nyquist freq
             order = 3
             
             try:
                 if filter_type == 'No Filter':
-                    # No filtering applied
                     filter_info = ""
                     signal_filtered = signal_original.copy()
                     
@@ -1868,7 +1302,6 @@ Humidity:
                     filter_info = f" + Band-pass ({low_cut}-{high_cut} Hz)"
                     show_comparison = True
                 elif filter_type == 'Band-stop':
-                    # Coupe-bande: remove frequencies between low_cut and high_cut
                     low_cut = float(self.low_cutoff.get())
                     high_cut = float(self.high_cutoff.get())
                     if low_cut <= 0 or high_cut >= nyq or low_cut >= high_cut:
@@ -1882,17 +1315,14 @@ Humidity:
                 messagebox.showerror("Error", f"Invalid filter parameters: {e}")
                 return
             
-            # Use filtered signal for analysis
             signal = signal_filtered
             
-            # ============ SPECTRAL ANALYSIS ON FILTERED SIGNAL ============
+            #SPECTRAL ANALYSIS ON FILTERED SIGNAL
             self.spectral_fig.clear()
             
-            # Create 2 subplots: time signal + frequency representation
             ax1 = self.spectral_fig.add_subplot(211)
             ax2 = self.spectral_fig.add_subplot(212)
             
-            # Plot temporal signal with comparison if filter is applied
             display_len = min(500, len(signal))
             ax1.plot(signal_original[:display_len], 'b-', linewidth=0.7, alpha=0.5, label='Original' if show_comparison else '')
             ax1.plot(signal_filtered[:display_len], 'r-', linewidth=0.8, label='Filtered' if show_comparison else '')
@@ -1903,9 +1333,7 @@ Humidity:
                 ax1.legend(loc='upper right')
             ax1.grid(True, alpha=0.3)
             
-            # Choose representation type
-            if repr_type == 'FFT Amplitude':
-                # ===== FFT AMPLITUDE =====
+            if repr_type == 'FFT Fast Fourier Transform':
                 n = len(signal)
                 fft_result = fft.fft(signal)
                 frequencies = fft.fftfreq(n, d=1.0)
@@ -1913,20 +1341,19 @@ Humidity:
                 frequencies = frequencies[positive_mask]
                 amplitudes = np.abs(fft_result[positive_mask]) * 2 / n
                 
-                # Plot FFT Amplitude
                 plot_limit = len(frequencies) // 2
                 ax2.plot(frequencies[:plot_limit], amplitudes[:plot_limit], 'r-', linewidth=1)
                 ax2.axvline(x=1/24, color='green', linestyle='--', alpha=0.7, label='Daily (24h)')
                 ax2.axvline(x=1/168, color='orange', linestyle='--', alpha=0.7, label='Weekly (168h)')
-                ax2.set_title(f'FFT Amplitude: {var_selected}{filter_info}', fontweight='bold')
+                ax2.set_title(f'Fast Fourier Transform: {var_selected}{filter_info}', fontweight='bold')
                 ax2.set_xlabel('Frequency (Hz)')
                 ax2.set_ylabel('Amplitude')
                 ax2.legend(loc='upper right')
                 ax2.grid(True, alpha=0.3)
                 
-                # Find dominant frequencies
+                #dominant frequencies
                 peak_idx = np.argsort(amplitudes[:plot_limit])[-5:][::-1]
-                results = f"FFT Amplitude Analysis: {var_selected}{filter_info}\n"
+                results = f"Fast Fourier Transform Analysis: {var_selected}{filter_info}\n"
                 results += "-" * 40 + "\n"
                 results += "Dominant Frequencies:\n\n"
                 for idx in peak_idx:
@@ -1936,15 +1363,14 @@ Humidity:
                         results += f"• {f:.5f} Hz - Amplitude: {amplitudes[idx]:.4f}\n"
                         results += f"  Period: {period:.1f}h\n\n"
                         
-            else:  # Power Spectrum
-                # ===== POWER SPECTRUM =====
+            else:  
+               #POWER SPECTRUM 
                 nperseg = min(256, len(signal)//4)
                 if nperseg < 4:
                     nperseg = len(signal)
                     
                 frequencies, power = welch(signal, fs=1.0, nperseg=nperseg)
                 
-                # Plot Power Spectrum
                 ax2.semilogy(frequencies, power, 'r-', linewidth=1)
                 ax2.axvline(x=1/24, color='green', linestyle='--', alpha=0.7, label='Daily (24h)')
                 ax2.axvline(x=1/168, color='orange', linestyle='--', alpha=0.7, label='Weekly (168h)')
@@ -1954,7 +1380,7 @@ Humidity:
                 ax2.legend(loc='upper right')
                 ax2.grid(True, alpha=0.3, which='both')
                 
-                # Find dominant frequencies
+                #dominant frequencies
                 peak_idx = np.argsort(power)[-5:][::-1]
                 results = f"Power Spectrum Analysis: {var_selected}{filter_info}\n"
                 results += "-" * 40 + "\n"
@@ -1978,7 +1404,6 @@ Humidity:
             messagebox.showerror("Error", f"Spectral analysis failed: {e}")
     
     def save_spectral_results(self):
-        #Sauvegarde les résultats spectraux
         try:
             var_selected = self.spectral_var.get()
             var_column = self.COLUMN_MAP[var_selected]
@@ -1992,12 +1417,10 @@ Humidity:
             messagebox.showerror("Error", f"Failed to save: {str(e)}")
     
     def reset_spectral_analysis(self):
-        """Reset spectral analysis - clear graph and results"""
-        # Clear the figure
         self.spectral_fig.clear()
         self.spectral_canvas.draw()
         
-        # Clear results text
+        #clear results text
         self.spectral_results.delete(1.0, tk.END)
         
         # Reset filter type to default
@@ -2040,21 +1463,17 @@ Humidity:
                 self.log(f"Error: {str(e)}")
     
     def display_images(self):
-        #Affiche les images originale et traité
         if self.original_image is not None:
-            #original img
             img_orig = self.resize_image_for_display(self.original_image)
             self.orig_photo = ImageTk.PhotoImage(img_orig)
             self.orig_image_label.configure(image=self.orig_photo)
         
         if self.current_image is not None:
-            #image traitée
             img_proc = self.resize_image_for_display(self.current_image)
             self.proc_photo = ImageTk.PhotoImage(img_proc)
             self.proc_image_label.configure(image=self.proc_photo)
     
     def resize_image_for_display(self, img, max_size=400):
-        #Redimensionne image pour l'affichage
         if len(img.shape) == 3:
             img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         else:
@@ -2068,7 +1487,6 @@ Humidity:
         return Image.fromarray(img_resized)
     
     def apply_image_processing(self, operation):
-        #Applique filtres pr image
         if self.original_image is None:
             messagebox.showwarning("Warning", "No Image Loaded")
             return
@@ -2098,10 +1516,8 @@ Humidity:
         except Exception as e:
             self.log(f"Error: {str(e)}")
     def load_image_from_db(self):
-        """Load an image from database with selection dialog showing all available images"""
         try:
             self.db.connect()
-            # Récupérer toutes les images disponibles depuis image_metadata
             self.db.cursor.execute(
                 "SELECT id, filename, file_path, width, height, processing_methods, created_at FROM image_metadata ORDER BY created_at DESC"
             )
@@ -2112,26 +1528,24 @@ Humidity:
                 messagebox.showinfo("Info", "No images found in database.\nPlease store an image first using 'Store Metadata'.")
                 return
 
-            # Créer une fenêtre de sélection
+            #créer une fenetre de sélection
             selection_dialog = tk.Toplevel(self.root)
             selection_dialog.title("Select Image from Database")
             selection_dialog.geometry("700x400")
             selection_dialog.transient(self.root)
             selection_dialog.grab_set()
             
-            # Centrer la fenêtre
+            #centrer la fenetre
             selection_dialog.update_idletasks()
             x = (selection_dialog.winfo_screenwidth() - 700) // 2
             y = (selection_dialog.winfo_screenheight() - 400) // 2
             selection_dialog.geometry(f"700x400+{x}+{y}")
 
-            # Frame principal
             main_frame = ttk.Frame(selection_dialog, padding="10")
             main_frame.pack(fill=tk.BOTH, expand=True)
 
             ttk.Label(main_frame, text="Select an image to load:", style="Header.TLabel").pack(pady=(0, 10))
 
-            # Treeview pour afficher les images
             columns = ('ID', 'Filename', 'Size', 'Processing', 'Date')
             tree = ttk.Treeview(main_frame, columns=columns, show='headings', height=12)
             
@@ -2147,12 +1561,11 @@ Humidity:
             tree.column('Processing', width=200)
             tree.column('Date', width=120, anchor='center')
 
-            # Scrollbar
             scrollbar = ttk.Scrollbar(main_frame, orient=tk.VERTICAL, command=tree.yview)
             tree.configure(yscrollcommand=scrollbar.set)
 
-            # Remplir le treeview
-            image_data = {}  # Stocker les données pour la sélection
+            #remplir le treeview
+            image_data = {}  #stocker les données pour la sélection
             for row in results:
                 img_id, filename, file_path, width, height, processing, created_at = row
                 size_str = f"{width}x{height}" if width and height else "N/A"
@@ -2165,7 +1578,6 @@ Humidity:
             tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
             scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
-            # Frame pour les boutons
             button_frame = ttk.Frame(selection_dialog, padding="10")
             button_frame.pack(fill=tk.X)
 
@@ -2179,7 +1591,6 @@ Humidity:
                 file_path = image_data[img_id]['path']
                 filename = image_data[img_id]['filename']
                 
-                # Vérifier si le fichier existe
                 if not os.path.exists(file_path):
                     messagebox.showerror("Error", f"Image file not found:\n{file_path}\n\nThe file may have been moved or deleted.")
                     return
@@ -2208,7 +1619,6 @@ Humidity:
             messagebox.showerror("Error", f"Unable to load images from DB: {str(e)}")
 
     def reset_image(self):
-        #Réinitialise l'image
         if self.original_image is not None:
             self.current_image = self.original_image.copy()
             self.image_processor.reset_to_original()
@@ -2216,7 +1626,6 @@ Humidity:
             self.log("Image Reset")
     
     def save_processed_image(self):
-        #Sauvegarde l'image traitée
         if self.current_image is not None:
             file_path = filedialog.asksaveasfilename(
                 defaultextension=".png",
@@ -2227,31 +1636,30 @@ Humidity:
                 self.log(f"Image Saved: {file_path}")
     
     def store_image_metadata(self):
-        """Store original image metadata in database and copy to storage folder if needed"""
         if not self.image_processor.image_path:
             messagebox.showwarning("Warning", "No image loaded.\nPlease load an image first.")
             return
             
         try:
-            # Créer le dossier de stockage s'il n'existe pas
+            #créer le dossier de stockage s'il n'existe pas
             storage_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "images", "stored")
             os.makedirs(storage_folder, exist_ok=True)
             
             original_path = self.image_processor.image_path
             filename = os.path.basename(original_path)
             
-            # Si l'image n'est pas déjà dans le dossier de stockage, la copier
+            #si l'image n'est pas déjà dans le dossier de stockage, la copier
             if storage_folder not in os.path.abspath(original_path):
-                # Ajouter un timestamp pour éviter les conflits de noms
+                #pour éviter les conflits de noms
                 name, ext = os.path.splitext(filename)
                 new_filename = f"{name}_{int(time.time())}{ext}"
                 new_path = os.path.join(storage_folder, new_filename)
                 
-                # Copier l'image originale
+                #copier l'image originale
                 import shutil
                 shutil.copy2(original_path, new_path)
                 
-                # Mettre à jour le chemin dans l'image processor
+                # Màj le chemin dans l'image processor
                 self.image_processor.image_path = new_path
                 self.log(f"Image copied to: {new_path}")
             
@@ -2263,32 +1671,29 @@ Humidity:
             messagebox.showerror("Error", f"Failed to store metadata: {str(e)}")
                 
     def store_processed_image_metadata(self):
-        """Store processed image in a dedicated folder with metadata in database"""
         if self.current_image is None:
             messagebox.showwarning("Warning", "No processed image to save.\nPlease load and process an image first.")
             return
         
-        # Créer le dossier de stockage s'il n'existe pas
         storage_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "images", "stored")
         os.makedirs(storage_folder, exist_ok=True)
         
-        # Génère un nom unique avec timestamp
         timestamp = int(time.time())
         filename = f"processed_{timestamp}.png"
         file_path = os.path.join(storage_folder, filename)
 
         try:
-            # Sauvegarde l'image dans le dossier dédié
+            #sauvegarde l'image dans le dossier dédié
             cv2.imwrite(file_path, self.current_image)
 
-            # Mettre à jour le chemin dans l'image processor
+            #màj le chemin dans l'image processor
             self.image_processor.image_path = file_path
             self.image_processor.image = self.current_image.copy()
             
-            # Récupérer l'historique des traitements
+            #récupérer l'historique des traitements
             processing_methods = ", ".join(self.image_processor.processing_history) if self.image_processor.processing_history else "manual_processing"
 
-            # Stocker les métadonnées dans image_metadata
+            #stocker les métadonnées dans image_metadata
             self.image_processor.store_metadata()
 
             self.log(f"Processed image saved: {file_path}")
@@ -2301,22 +1706,14 @@ Humidity:
     def update_blur_kernel(self, value):
         kernel = int(round(float(value)))
 
-    # forcer impair
         if kernel % 2 == 0:
             kernel += 1
 
-    # bornes de sécurité
         kernel = max(3, min(kernel, 21))
 
-    # afficher la vraie valeur utilisée
         self.blur_kernel_label.config(text=str(kernel))
 
-    # stocker la valeur réelle pour le traitement
         self.current_blur_kernel = kernel
-
-
-
-   
     
     #AUTRES
     

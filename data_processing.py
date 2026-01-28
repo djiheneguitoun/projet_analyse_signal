@@ -1,17 +1,3 @@
-"""
-Partie 2: Chargement et Filtrage des Données
-=============================================
-Ce module gère le chargement, nettoyage et filtrage des données
-de qualité de l'air avec des techniques de réduction de bruit.
-
-Fonctionnalités:
-- Importation et nettoyage des données CSV
-- Stockage des données nettoyées dans la base
-- Filtrage par moyenne mobile
-- Filtrage par seuil
-- Détection et suppression des valeurs aberrantes
-"""
-
 import pandas as pd
 import numpy as np
 from database_integration import AirQualityDatabase
@@ -19,7 +5,6 @@ import matplotlib.pyplot as plt
 
 
 class DataProcessor:
-    #classe pour le chargement et filtrage des données
     
     def __init__(self, db_path="db_air_quality"):
 
@@ -219,13 +204,11 @@ class DataProcessor:
         
         fig, axes = plt.subplots(2, 1, figsize=(12, 8))
         
-        #données originales
         axes[0].plot(original, 'b-', alpha=0.7, linewidth=0.8)
         axes[0].set_title(f'{column} - Original Data')
         axes[0].set_ylabel('Value')
         axes[0].grid(True, alpha=0.3)
         
-        # Moyenne mobile
         axes[1].plot(original, 'b-', alpha=0.3, linewidth=0.5, label='Original')
         axes[1].plot(filtered, 'r-', linewidth=1.5, label=f'Moving Average (n={window_size})')
         axes[1].set_title(f'{column} - Moving Average Filter')

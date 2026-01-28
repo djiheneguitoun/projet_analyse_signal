@@ -1,15 +1,3 @@
-"""
-Partie 3: Analyse des Corrélations
-===================================
-Ce module calcule et visualise les corrélations entre les variables
-de qualité de l'air.
-
-Fonctionnalités:
-- Calcul des coefficients de corrélation (Pearson et Spearman)
-- Stockage des résultats dans la base de données
-- Visualisation avec scatter plots et heatmaps
-"""
-
 import pandas as pd
 import numpy as np
 from scipy import stats
@@ -36,10 +24,8 @@ class CorrelationAnalyzer:
         self.numeric_columns = ['co_gt', 'no2_gt','temperature', 
                                 'humidity']
     def get_label(self, col):
-        """Retourne le nom lisible d'une colonne."""
         return LABELS.get(col, col)
 
-    
     def load_data(self):
         self.db.connect()
         self.data = self.db.get_data_as_dataframe()
@@ -54,7 +40,6 @@ class CorrelationAnalyzer:
         return self.data
     
     def calculate_pearson_correlation(self):
-        #Calcule la matrice de corrélation de Pearson.
     
         if self.data is None:
             self.load_data()
@@ -73,8 +58,6 @@ class CorrelationAnalyzer:
         return self.correlation_matrix
     
     def calculate_correlation_pair(self, var1, var2, method='pearson'):
-        
-        #Calcule la corrélation entre deux variables spécifiques.
        
         if self.data is None:
             self.load_data()
@@ -104,7 +87,7 @@ class CorrelationAnalyzer:
         else:
             corr_matrix = self.calculate_spearman_correlation()
         
-        # Extraire les paires uniques
+        #extraire les paires uniques
         correlations = []
         for i in range(len(corr_matrix.columns)):
             for j in range(i+1, len(corr_matrix.columns)):
@@ -136,10 +119,8 @@ class CorrelationAnalyzer:
         
         self.db.connect()
         
-        #vider les anciens résults
         self.db.cursor.execute("DELETE FROM correlation_results WHERE correlation_type = %s", (method,))
         
-        #et insérer les nouvelles corrélations
         count = 0
         for i in range(len(corr_matrix.columns)):
             for j in range(i+1, len(corr_matrix.columns)):
@@ -160,19 +141,16 @@ class CorrelationAnalyzer:
         print(f"{count} Correlation Results Stored in Database (méthode: {method})")
     
     def plot_heatmap(self, method='pearson', save_path=None):
-        #crée une heatmap des corrélations (complete, sans masque)
     
         if method == 'pearson':
             corr_matrix = self.calculate_pearson_correlation()
         else:
             corr_matrix = self.calculate_spearman_correlation()
         
-        # Rename columns to display labels
         corr_matrix = corr_matrix.rename(index=LABELS, columns=LABELS)
         
         plt.figure(figsize=(14, 10))
         
-        # Full heatmap without mask
         sns.heatmap(corr_matrix, 
                     annot=True, 
                     fmt='.2f', 
@@ -203,13 +181,13 @@ class CorrelationAnalyzer:
         #scatter plot
         ax.scatter(self.data[var1], self.data[var2], alpha=0.5, s=10, c='steelblue')
         
-        # Ligne de régression
+        #ligne de régression
         z = np.polyfit(self.data[var1], self.data[var2], 1)
         p = np.poly1d(z)
         x_line = np.linspace(self.data[var1].min(), self.data[var1].max(), 100)
         ax.plot(x_line, p(x_line), 'r-', linewidth=2, label='Linear Regression')
         
-        # Calcul de la corrélation
+        #corrélation
         coef, _ = self.calculate_correlation_pair(var1, var2)
         
         ax.set_xlabel(self.get_LABELS(var1), fontsize=11)
@@ -227,7 +205,6 @@ class CorrelationAnalyzer:
         plt.show()
     
     def plot_multiple_scatter(self, pairs, save_path=None):
-        #crée plusieurs scatter plots pour différentes paires de variables.
     
         if self.data is None:
             self.load_data()
@@ -275,8 +252,7 @@ class CorrelationAnalyzer:
         plt.show()
     
     def interpret_correlation(self, coef):
- 
-        #Interprète la force d'une corrélation.
+
         abs_coef = abs(coef)
         if abs_coef >= 0.9:
             strength = "Very Strong"

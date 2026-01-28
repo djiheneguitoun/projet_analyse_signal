@@ -1,16 +1,3 @@
-"""
-Partie 5: Traitement d'Images de Base
-======================================
-Ce module gère le traitement des images environnementales ou satellites.
-
-Fonctionnalités:
-- Conversion en niveaux de gris
-- Lissage/Floutage (filtre Gaussien)
-- Détection de contours (Canny)
-- Seuillage pour segmentation
-- Stockage des métadonnées dans la base de données
-"""
-
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
@@ -47,9 +34,6 @@ class ImageProcessor:
         
         return self.image
     def load_image_from_database(self, filename):
-        """
-        Charge une image déjà enregistrée dans la base via son nom de fichier.
-        """
         self.db.connect()
         self.db.cursor.execute(
             "SELECT file_path FROM image_metadata WHERE filename = %s", (filename,)
@@ -64,11 +48,6 @@ class ImageProcessor:
         return self.load_image(image_path)
     
     def apply_processing_pipeline(self, operations):
-        """
-        Applique une série de traitements à l'image courante.
-        operations : liste de tuples (nom_op, kwargs)
-    Ex: [('grayscale', {}), ('gaussian_blur', {'kernel_size':7})]
-    """
         if self.image is None:
             raise ValueError("No image loaded to process.")
 
@@ -90,17 +69,14 @@ class ImageProcessor:
         return processed
 
     def display_multiple_processing(self, save_path=None):
-        """
-    Affiche l'image originale et plusieurs traitements appliqués pour comparaison.
-    Exemple de pipeline: grayscale, gaussian blur, canny edges, threshold.
-    """
+  
         if self.original_image is None:
             raise ValueError("No original image loaded.")
     
-    # Sauvegarder l'image originale pour comparaison
+    #sauvegarder l'image originale pour comparaison
         original = self.original_image.copy()
     
-    # Appliquer différents traitements
+    #appliquer différents traitements
         self.reset_to_original()
         gray = self.convert_to_grayscale()
     
@@ -151,7 +127,6 @@ class ImageProcessor:
         if self.image is None:
             raise ValueError("No image loaded.")
         
-        #s'assurer que kernel_size est impair
         if kernel_size % 2 == 0:
             kernel_size += 1
         
@@ -232,7 +207,6 @@ class ImageProcessor:
         return result
     
     def reset_to_original(self):
-        #Réinitialise l'image à son état original
         if self.original_image is not None:
             self.image = self.original_image.copy()
             self.processing_history = []
@@ -247,7 +221,6 @@ class ImageProcessor:
         print(f"Image saved: {output_path}")
     
     def store_metadata(self):
-        #stocke les métadonnées de l'image dans la bd
         if self.image is None or self.image_path is None:
             raise ValueError("No image loaded.")
         
@@ -258,21 +231,18 @@ class ImageProcessor:
         
         self.db.connect()
         
-        #vérifier si l'image existe déjà
         self.db.cursor.execute(
             "SELECT id FROM image_metadata WHERE filename = %s", (filename,)
         )
         existing = self.db.cursor.fetchone()
         
         if existing:
-            #mettre à jour
             self.db.cursor.execute('''
                 UPDATE image_metadata 
                 SET processing_methods = %s, updated_at = CURRENT_TIMESTAMP
                 WHERE filename = %s
             ''', (methods, filename))
         else:
-            # Insérer
             self.db.cursor.execute('''
                 INSERT INTO image_metadata 
                 (filename, file_path, file_size, width, height, processing_methods)
@@ -284,12 +254,9 @@ class ImageProcessor:
         
         print(f"Metadata stored for'{filename}'")
     
-    def display_comparison(self, processed_image, title1="Original", title2="Processed", save_path=None):
-
-        #Affiche une comparaison côte à côte    
+    def display_comparison(self, processed_image, title1="Original", title2="Processed", save_path=None): 
         fig, axes = plt.subplots(1, 2, figsize=(12, 5))
         
-        #image originale
         if len(self.original_image.shape) == 3:
             axes[0].imshow(cv2.cvtColor(self.original_image, cv2.COLOR_BGR2RGB))
         else:
@@ -297,7 +264,6 @@ class ImageProcessor:
         axes[0].set_title(title1, fontsize=12, fontweight='bold')
         axes[0].axis('off')
         
-        #image traitée
         if len(processed_image.shape) == 3:
             axes[1].imshow(cv2.cvtColor(processed_image, cv2.COLOR_BGR2RGB))
         else:
@@ -313,27 +279,23 @@ class ImageProcessor:
         
         plt.show()
     
-    
-
-
 def create_sample_image():
-    #crée une image d'exemple si aucune n'existe 
     sample_path = "images/sample_environmental.png"
     
     if not os.path.exists(sample_path):
-        # Créer une image de test avec des motifs
+        #créer une image de test avec des motifs
         img = np.zeros((400, 600, 3), dtype=np.uint8)
         
-        # Fond avec gradient (simule le ciel)
+        #fond avec gradient (simule le ciel)
         for i in range(400):
             img[i, :] = [255 - i//2, 200 - i//3, 100 + i//4]
         
-        # Ajouter des formes (simule des zones de pollution)
+        #ajouter des formes (simule des zones de pollution)
         cv2.circle(img, (150, 200), 80, (100, 100, 100), -1)
         cv2.circle(img, (450, 150), 60, (80, 80, 80), -1)
         cv2.rectangle(img, (250, 300), (400, 380), (50, 50, 50), -1)
         
-        # Ajouter du bruit
+        #ajouter du bruit
         noise = np.random.randint(0, 30, img.shape, dtype=np.uint8)
         img = cv2.add(img, noise)
         
@@ -350,11 +312,8 @@ def test_image_processing():
     print("=" * 60)
     
     processor = ImageProcessor()
-    
-    # Créer ou utiliser une image d'exemple
     print("\n1. Preparing image..")
     
-    # Chercher une image existante dans le dossier images
     images_dir = "images"
     image_files = [f for f in os.listdir(images_dir) if f.endswith(('.png', '.jpg', '.jpeg'))]
     

@@ -1,16 +1,3 @@
-"""
-Partie 4: Analyse Spectrale
-============================
-Ce module applique la Transformée de Fourier Rapide (FFT) sur les séries
-temporelles pour identifier des tendances et oscillations périodiques.
-
-Fonctionnalités:
-- Application de la FFT sur les séries temporelles
-- Identification des fréquences dominantes
-- Stockage des résultats dans la base de données
-- Visualisation des spectres de puissance
-"""
-
 import pandas as pd
 import numpy as np
 from scipy import fft
@@ -52,10 +39,10 @@ class SpectralAnalyzer:
         #soustraire la moyenne (composante DC)
         signal = signal - np.mean(signal)
         
-        # Appliquer la FFT
+        # la FFT
         fft_result = fft.fft(signal)
         
-        # Calculer les fréquences
+        #calculer les fréquences
         frequencies = fft.fftfreq(n, d=1/self.sampling_rate)
         
         #garder que les fréquences positives
@@ -142,7 +129,6 @@ class SpectralAnalyzer:
             "DELETE FROM spectral_analysis WHERE variable_name = %s", (column,)
         )
         
-        #insérer les nouveaux résultats
         self.db.cursor.execute('''
             INSERT INTO spectral_analysis 
             (variable_name, dominant_frequency, power_spectrum_data)
@@ -215,8 +201,6 @@ class SpectralAnalyzer:
         plt.show()
     
     def plot_multiple_spectra(self, columns, save_path=None):
-  
-        #Compare les spectres de plusieurs variables.
  
         if self.data is None:
             self.load_data()

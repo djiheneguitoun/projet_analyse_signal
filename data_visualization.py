@@ -1,16 +1,3 @@
-"""
-Partie 6: Visualisation des Données
-====================================
-Ce module centralise toutes les visualisations du projet.
-
-Fonctionnalités:
-- Graphiques de séries temporelles
-- Diagrammes de dispersion
-- Heatmaps de corrélation
-- Diagrammes d'analyse spectrale
-- Affichage des images traitées
-"""
-
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -46,7 +33,6 @@ class DataVisualizer:
         self.data = self.db.get_data_as_dataframe()
         self.db.disconnect()
         
-        #créer une colonne datetime
         if 'date' in self.data.columns and 'time' in self.data.columns:
             self.data['datetime'] = pd.to_datetime(
                 self.data['date'] + ' ' + self.data['time'].str.replace('.', ':'),
@@ -56,8 +42,6 @@ class DataVisualizer:
         
         print(f"Data loaded: {len(self.data)} records")
         return self.data
-    
-    #SÉRIES TEMPORELLES
     
     def plot_time_series(self, column, title=None, save_path=None):
 
@@ -143,7 +127,6 @@ class DataVisualizer:
         
         plt.show()
     
-    #SCATTER PLOTS
     
     def plot_scatter(self, x_col, y_col, save_path=None):
 
@@ -164,7 +147,7 @@ class DataVisualizer:
         x_line = np.linspace(self.data[x_col].min(), self.data[x_col].max(), 100)
         ax.plot(x_line, p(x_line), 'r-', linewidth=2, label='Linear regression')
         
-        # Corrélation
+        #corrélation
         corr = self.data[x_col].corr(self.data[y_col])
         
         ax.set_xlabel(LABELS.get(x_col, x_col), fontsize=11)
@@ -203,7 +186,6 @@ class DataVisualizer:
         
         plt.show()
     
-    #HEATMAPS 
     
     def plot_correlation_heatmap(self, columns=None, method='pearson', save_path=None):
 
@@ -276,8 +258,6 @@ class DataVisualizer:
             print(f"Figure saved: {save_path}")
         
         plt.show()
-    
-    #ANALYSE SPECTRALE
     
     def plot_spectral_analysis(self, column, save_path=None):
 
@@ -360,7 +340,6 @@ class DataVisualizer:
             axes[idx].set_title(title, fontsize=11, fontweight='bold')
             axes[idx].axis('off')
         
-        # Cacher les axes inutilisés
         for idx in range(len(available), len(axes)):
             axes[idx].set_visible(False)
         
