@@ -56,7 +56,7 @@ class SpectralAnalyzer:
         
         print(f"FFT Applied on '{column}'")
         print(f"  - Points: {n}")
-        print(f"  - Max Frequency: {frequencies[-1]:.4f} Hz")
+        print(f"  - Max Frequency: {frequencies[-1]:.4f} h-1")
         
         return frequencies, amplitudes, phases
     
@@ -96,7 +96,7 @@ class SpectralAnalyzer:
             period_days = period_hours / 24
             
             results.append({
-                'Frequency (Hz)': freq,
+                'Frequency (h-1)': freq,
                 'Amplitude': amp,
                 'Period (hours)': period_hours,
                 'Period (days)': period_days
@@ -114,7 +114,7 @@ class SpectralAnalyzer:
         frequencies, power = self.compute_power_spectrum(column)
         dominant = self.find_dominant_frequencies(column, n_peaks=1)
 
-        dominant_freq = dominant['Frequency (Hz)'].iloc[0]
+        dominant_freq = dominant['Frequency (h-1)'].iloc[0]
         
         #convertir le spectre en string JSON pour stockage
         spectrum_data = {
@@ -159,7 +159,7 @@ class SpectralAnalyzer:
         mask = (frequencies > 0) & (frequencies < 0.1)
         axes[1].plot(frequencies[mask], amplitudes[mask], 'r-', linewidth=0.8)
         axes[1].set_title(f'FFT Spectrum: {column}', fontsize=12, fontweight='bold')
-        axes[1].set_xlabel('Frequency (Hz)')
+        axes[1].set_xlabel('Frequency (h-1)')
         axes[1].set_ylabel('Amplitude')
         axes[1].grid(True, alpha=0.3)
         
@@ -183,7 +183,7 @@ class SpectralAnalyzer:
         
         ax.semilogy(frequencies[1:], power_subset, 'b-', linewidth=0.8)
         ax.set_title(f'Power Spectrum ({method}): {column}', fontsize=12, fontweight='bold')
-        ax.set_xlabel('Frequency (Hz)')
+        ax.set_xlabel('Frequency (h-1)')
         ax.set_ylabel('Power Spectral Density')
         ax.grid(True, alpha=0.3, which='both')
         
@@ -222,7 +222,7 @@ class SpectralAnalyzer:
             frequencies, power = welch(signal, fs=self.sampling_rate, nperseg=min(256, len(signal)//4))
             axes[idx, 1].semilogy(frequencies, power, 'r-', linewidth=0.8)
             axes[idx, 1].set_title(f'{column} - Spectrum', fontsize=10)
-            axes[idx, 1].set_xlabel('Frequency (Hz)')
+            axes[idx, 1].set_xlabel('Frequency (h-1)')
             axes[idx, 1].axvline(x=1/24, color='g', linestyle='--', alpha=0.5)
             axes[idx, 1].grid(True, alpha=0.3, which='both')
         
@@ -274,7 +274,7 @@ def test_spectral_analysis():
     
     print("\n Cycle Interpretation:")
     for _, row in dominant_temp.iterrows():
-        interp = analyzer.interpret_frequency(row['Frequency (Hz)'])
+        interp = analyzer.interpret_frequency(row['Frequency (h-1)'])
         print(f"   - {interp}")
     
     print("\n4. Spectral Analysis of CO..")

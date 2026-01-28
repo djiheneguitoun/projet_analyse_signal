@@ -224,9 +224,7 @@ class EnvironmentalDataGUI:
         ttk.Button(left_frame, text="Store Data to Database", command=self.save_to_db).pack(fill=tk.X, pady=2)
         ttk.Separator(left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
         
-        ttk.Label(left_frame, text="Statistics:", font=('Helvetica', 10, 'bold')).pack(anchor=tk.W)
-        self.stats_label = ttk.Label(left_frame, text="No data", justify=tk.LEFT)
-        self.stats_label.pack(anchor=tk.W, pady=5)
+        # Statistics are available from the Database menu (removed from sidebar)
         
         #tableau de données
         right_frame = ttk.LabelFrame(tab, text="Data overview", padding=10)
@@ -692,19 +690,22 @@ class EnvironmentalDataGUI:
         self.log_text.see(tk.END)
     
     def update_stats(self):
-        if self.data is not None and len(self.data) > 0 and 'temperature' in self.data.columns:
-            stats = f"""
+                # Update stats if the sidebar stats label exists; otherwise do nothing
+                if self.data is not None and len(self.data) > 0 and 'temperature' in self.data.columns:
+                        stats = f"""
 
 Temperature:
-  Moy: {self.data['temperature'].mean():.1f}°C
-  Min: {self.data['temperature'].min():.1f}°C
-  Max: {self.data['temperature'].max():.1f}°C
+    Moy: {self.data['temperature'].mean():.1f}°C
+    Min: {self.data['temperature'].min():.1f}°C
+    Max: {self.data['temperature'].max():.1f}°C
 
 Humidity:
-  Moy: {self.data['humidity'].mean():.1f}%"""
-            self.stats_label.configure(text=stats)
-        else:
-            self.stats_label.configure(text="No Data\n\nLoad a CSV file\nto get started.")
+    Moy: {self.data['humidity'].mean():.1f}%"""
+                        if hasattr(self, 'stats_label'):
+                                self.stats_label.configure(text=stats)
+                else:
+                        if hasattr(self, 'stats_label'):
+                                self.stats_label.configure(text="No Data\n\nLoad a CSV file\nto get started.")
     
     def update_data_tree(self):
         for item in self.data_tree.get_children():
@@ -793,19 +794,37 @@ Humidity:
                 self.log(f"Error: {str(e)}")
     
     def clear_database(self):
-        if messagebox.askyesno("Confirmation", "Are you sure you want to clear the database?"):
+        if messagebox.askyesno("Confirmation", "Are you sure you want to clear the entire database? This will remove all tables data."):
             try:
                 self.db.connect()
-                self.db.cursor.execute("DELETE FROM air_quality_measurements")
-                # Reset auto-increment for MySQL
-                self.db.cursor.execute("ALTER TABLE air_quality_measurements AUTO_INCREMENT = 1")
+                # Ensure tables exist
+                self.db.create_tables()
+
+                # List of tables to clear
+                tables = [
+                    'filtered_data_history',
+                    'spectral_analysis',
+                    'correlation_results',
+                    'image_metadata',
+                    'images',
+                    'air_quality_measurements'
+                ]
+
+                for t in tables:
+                    try:
+                        self.db.cursor.execute(f"DELETE FROM {t}")
+                        self.db.cursor.execute(f"ALTER TABLE {t} AUTO_INCREMENT = 1")
+                    except Exception:
+                        # ignore individual table errors and continue
+                        pass
+
                 self.db.connection.commit()
                 self.db.disconnect()
-                
+
                 self.data = pd.DataFrame()
                 self.update_stats()
                 self.update_data_tree()
-                self.log("Database cleared")
+                self.log("Database cleared (all tables)")
                 messagebox.showinfo("Success", "The database has been cleared.")
             except Exception as e:
                 self.log(f"Error: {str(e)}")
@@ -957,31 +976,41 @@ Humidity:
             self.db.connect()
             stats = self.db.get_statistics()
             self.db.disconnect()
-            
-            msg = f"Total Records: {stats['total_records']}\n\n"
+            # Map internal column keys to user-friendly labels
+            label_map = {
+                'co_gt': 'CO',
+                'no2_gt': 'NO₂',
+                'temperature': 'Temperature',
+                'humidity': 'Humidity'
+            }
+
+            msg_lines = [f"Total Records: {stats.get('total_records', 0)}", ""]
+
             for col, values in stats.items():
-                if col != 'total_records' and isinstance(values, dict):
-                    msg += f"{col}:\n"
-                    msg += f"  Average: {values['moyenne']}\n"
-                    msg += f"  Min: {values['min']}\n"
-                    msg += f"  Max: {values['max']}\n\n"
-            
-            messagebox.showinfo("Database Statistics", msg)
+                if col == 'total_records':
+                    continue
+                if isinstance(values, dict):
+                    label = label_map.get(col, col)
+                    avg = values.get('moyenne')
+                    minv = values.get('min')
+                    maxv = values.get('max')
+                    avg_s = f"{avg}" if avg is not None else "N/A"
+                    min_s = f"{minv}" if minv is not None else "N/A"
+                    max_s = f"{maxv}" if maxv is not None else "N/A"
+                    msg_lines.append(f"{label}:")
+                    msg_lines.append(f"  Average: {avg_s}")
+                    msg_lines.append(f"  Min: {min_s}")
+                    msg_lines.append(f"  Max: {max_s}")
+                    msg_lines.append("")
+
+            messagebox.showinfo("Database Statistics", "\n".join(msg_lines))
         except Exception as e:
             messagebox.showerror("Error", str(e))
     
     def clean_data(self):
-        if self.data is not None:
-            try:
-                processor = DataProcessor()
-                processor.data = self.data
-                processor.clean_data()
-                self.data = processor.cleaned_data
-                self.update_stats()
-                self.update_data_tree()
-                self.log("Data Cleaned")
-            except Exception as e:
-                self.log(f"Error: {str(e)}")
+        # Align behavior with Clear Database: remove all database content
+        # Use the same confirmation flow as clear_database
+        self.clear_database()
     
     #FONCTIONS FILTRAGE 
     
@@ -1346,22 +1375,28 @@ Humidity:
                 ax2.axvline(x=1/24, color='green', linestyle='--', alpha=0.7, label='Daily (24h)')
                 ax2.axvline(x=1/168, color='orange', linestyle='--', alpha=0.7, label='Weekly (168h)')
                 ax2.set_title(f'Fast Fourier Transform: {var_selected}{filter_info}', fontweight='bold')
-                ax2.set_xlabel('Frequency (Hz)')
+                ax2.set_xlabel('Frequency (h-1)')
                 ax2.set_ylabel('Amplitude')
                 ax2.legend(loc='upper right')
                 ax2.grid(True, alpha=0.3)
                 
-                #dominant frequencies
-                peak_idx = np.argsort(amplitudes[:plot_limit])[-5:][::-1]
+                # dominant frequency (single strongest peak)
+                amps = amplitudes[:plot_limit]
                 results = f"Fast Fourier Transform Analysis: {var_selected}{filter_info}\n"
                 results += "-" * 40 + "\n"
-                results += "Dominant Frequencies:\n\n"
-                for idx in peak_idx:
-                    f = frequencies[idx]
-                    if f > 0:
-                        period = 1/f
-                        results += f"• {f:.5f} Hz - Amplitude: {amplitudes[idx]:.4f}\n"
-                        results += f"  Period: {period:.1f}h\n\n"
+                if amps.size > 0 and np.any(amps > 0):
+                    rel_idx = int(np.argmax(amps))
+                    f_dom = float(frequencies[rel_idx])
+                    if f_dom > 0:
+                        period = 1.0 / f_dom
+                        amp_dom = float(amps[rel_idx])
+                        results += f"Dominant Frequency:\n"
+                        results += f"  {f_dom:.6f} Hz - Amplitude: {amp_dom:.4f}\n"
+                        results += f"  Period: {period:.2f} h\n"
+                    else:
+                        results += "No positive dominant frequency found.\n"
+                else:
+                    results += "No significant frequency content found.\n"
                         
             else:  
                #POWER SPECTRUM 
@@ -1375,22 +1410,27 @@ Humidity:
                 ax2.axvline(x=1/24, color='green', linestyle='--', alpha=0.7, label='Daily (24h)')
                 ax2.axvline(x=1/168, color='orange', linestyle='--', alpha=0.7, label='Weekly (168h)')
                 ax2.set_title(f'Power Spectrum: {var_selected}{filter_info}', fontweight='bold')
-                ax2.set_xlabel('Frequency (Hz)')
+                ax2.set_xlabel('Frequency (h-1)')
                 ax2.set_ylabel('Power Spectral Density')
                 ax2.legend(loc='upper right')
                 ax2.grid(True, alpha=0.3, which='both')
                 
-                #dominant frequencies
-                peak_idx = np.argsort(power)[-5:][::-1]
+                # dominant frequency (single strongest peak)
                 results = f"Power Spectrum Analysis: {var_selected}{filter_info}\n"
                 results += "-" * 40 + "\n"
-                results += "Dominant Frequencies:\n\n"
-                for idx in peak_idx:
-                    f = frequencies[idx]
-                    if f > 0:
-                        period = 1/f
-                        results += f"• {f:.5f} Hz - Power: {power[idx]:.4e}\n"
-                        results += f"  Period: {period:.1f}h\n\n"
+                pos_mask = frequencies > 0
+                if np.any(pos_mask):
+                    f_pos = frequencies[pos_mask]
+                    p_pos = power[pos_mask]
+                    rel_idx = int(np.argmax(p_pos))
+                    f_dom = float(f_pos[rel_idx])
+                    p_dom = float(p_pos[rel_idx])
+                    period = 1.0 / f_dom
+                    results += f"Dominant Frequency:\n"
+                    results += f"  {f_dom:.6f} Hz - Power: {p_dom:.4e}\n"
+                    results += f"  Period: {period:.2f} h\n"
+                else:
+                    results += "No positive dominant frequency found.\n"
             
             self.spectral_results.delete(1.0, tk.END)
             self.spectral_results.insert(tk.END, results)
@@ -1718,20 +1758,76 @@ Humidity:
     #AUTRES
     
     def show_about(self):
-        messagebox.showinfo(
-            "About",
-            "Environmental Data Processing\n\n"
-            "Version 1.0\n"
-            "Date: December 31, 2025\n\n"
-            "Features::\n"
-            "• MySQL database management\n"
-            "• Data loading and filtering\n"
-            "• Correlation analysis\n"
-            "• Spectral Analysis (FFT)\n"
-            "• Spectral Filters (Low/High/Band-pass)\n"
-            "• Image Processing\n"
-            "• Data Visualization\n"
+        # Create a larger, scrollable About window with detailed descriptions
+        about_win = tk.Toplevel(self.root)
+        about_win.title("About / Help")
+        about_win.geometry("700x600")
+        about_win.transient(self.root)
+        about_win.grab_set()
+
+        # Center the window
+        about_win.update_idletasks()
+        x = (about_win.winfo_screenwidth() - 700) // 2
+        y = (about_win.winfo_screenheight() - 600) // 2
+        about_win.geometry(f"700x600+{x}+{y}")
+
+        frame = ttk.Frame(about_win, padding=10)
+        frame.pack(fill=tk.BOTH, expand=True)
+
+        header = ttk.Label(frame, text="Environmental Data Processing - Help / About", style="Header.TLabel")
+        header.pack(pady=(0, 10))
+
+        help_text = scrolledtext.ScrolledText(frame, wrap=tk.WORD, font=("Helvetica", 10))
+        help_text.pack(fill=tk.BOTH, expand=True)
+
+        content = (
+
+            "Application Overview:\n"
+            "This application allows import, cleaning, storage and analysis of environmental and air-quality data. "
+            "It includes filtering, correlation, spectral analysis and basic image processing modules.\n\n"
+            "Pages and Controls:\n\n"
+            "1) Data (Data tab):\n"
+            "- Import CSV: open and import a CSV file into the database.\n"
+            "- Load Data from Database: fetch and display stored measurements.\n"
+            "- Clear database: remove all data from the database (all tables).\n"
+            "- Store Data to Database: save the currently displayed data to the database.\n"
+            "- Add Row / Edit Row / Delete Row: CRUD operations on individual measurement records.\n\n"
+            "2) Filtering (Filtering tab):\n"
+            "- Variable: choose which variable to filter (CO, NO2, Temperature, Humidity).\n"
+            "- Filter Type: select 'Moving Average' or 'Threshold Filter'.\n"
+            "- Window Size: for moving average, defines the window length.\n"
+            "- Min/Max Threshold: for threshold filter, clip values between these bounds.\n"
+            "- Apply Filter: compute and display the filtered series and a comparison table.\n"
+            "- Reset: clear filter results.\n"
+            "- Save Filtered Data to DB: store filtered results in the filtered data history table.\n\n"
+            "3) Correlations (Correlations tab):\n"
+            "- Method: choose correlation method (pearson or spearman).\n"
+            "- Variable X / Variable Y: select variables for analysis.\n"
+            "- Show Heatmap: compute and display the correlation matrix heatmap.\n"
+            "- Show Scatter: display a scatter plot and linear regression line for the selected pair.\n"
+            "- Save to Database: store computed correlation results.\n\n"
+            "4) Spectrum Analysis (Spectrum Analysis tab):\n"
+            "- Variable: choose variable for spectral analysis.\n"
+            "- Representation: choose FFT or Power Spectrum.\n"
+            "- Frequency Filters: apply No Filter / Low-pass / High-pass / Band-pass / Band-stop.\n"
+            "- Run Analysis: performs spectral computation and shows dominant frequencies.\n"
+            "- Reset: reset parameters and results.\n\n"
+            "5) Image Processing (Image Processing tab):\n"
+            "- Load Image / Load Image from DB: load a local image or one stored in the DB.\n"
+            "- Processing: choose operations (grayscale, blur, edges, thresholding, etc.).\n"
+            "- Apply Processing: apply the selected operation to the current image.\n"
+            "- Reset / Save / Store Metadata: reset the processed image, save it to disk, or store its metadata in the DB.\n\n"
+            "Menus:\n"
+            "- File: CSV loading, Export data, Quit.\n"
+            "- Database: Reload data, Statistics (shows aggregated metrics), Clean data (clears all DB tables).\n"
+            "- Help: About (this window).\n\n"
+    
         )
+
+        help_text.insert(tk.END, content)
+        help_text.configure(state=tk.DISABLED)
+
+        ttk.Button(frame, text="Close", command=about_win.destroy).pack(pady=(8, 0))
 
 
 def main():
