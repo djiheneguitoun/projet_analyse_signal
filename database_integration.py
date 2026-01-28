@@ -1,7 +1,5 @@
 import mysql.connector
 import pandas as pd
-import os
-from datetime import datetime
 
 
 class AirQualityDatabase:
@@ -43,7 +41,6 @@ class AirQualityDatabase:
             print("Connection Closed.")
     
     def create_tables(self):
-        
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS air_quality_measurements (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -71,7 +68,6 @@ class AirQualityDatabase:
             )
         ''')
 
- 
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS correlation_results (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -113,53 +109,8 @@ class AirQualityDatabase:
         self.connection.commit()
         print("Tables Created Successfully.")
     
-    def load_csv_to_database(self, csv_path):
-        
-        #lecture du CSV avec le bon séparateur et format décimal
-        df = pd.read_csv(csv_path, sep=';', decimal=',')
-        
-        df = df.dropna(axis=1, how='all')
-        
-        column_mapping = {
-            'Date': 'date',
-            'Time': 'time',
-            'CO(GT)': 'co_gt',
-            'NO2(GT)': 'no2_gt',
-            'T': 'temperature',
-            'RH': 'humidity',
-        }
-        df = df.rename(columns=column_mapping)
-        
-        df = df.replace(-200, None)
-        
-        df = df.dropna(how='all')
-
-        count = 0
-        for _, row in df.iterrows():
-            try:
-                self.cursor.execute('''
-                    INSERT INTO air_quality_measurements 
-                    (date, time, co_gt, no2_gt, temperature, humidity)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                ''', (
-                    row.get('date'), row.get('time'), 
-                    None if pd.isna(row.get('co_gt')) else row.get('co_gt'),
-                    None if pd.isna(row.get('no2_gt')) else row.get('no2_gt'),
-                    None if pd.isna(row.get('temperature')) else row.get('temperature'),
-                    None if pd.isna(row.get('humidity')) else row.get('humidity')
-                ))
-                count += 1
-            except Exception as e:
-                print(f"Error During Insertion: {e}")
-        
-        self.connection.commit()
-        print(f"{count} Records Inserted Since {csv_path}")
-        return count
-    
-    # REQUÊTES CRUD  
     def insert_measurement(self, date, time, co_gt=None, no2_gt=None,
                            temperature=None, humidity=None):
-    
         self.cursor.execute('''
             INSERT INTO air_quality_measurements 
             (date, time, co_gt, no2_gt, 
@@ -171,56 +122,7 @@ class AirQualityDatabase:
         print(f"Measurement Inserted with ID: {self.cursor.lastrowid}")
         return self.cursor.lastrowid
     
-    def get_all_measurements(self, limit=None):
-              
-        query = "SELECT * FROM air_quality_measurements"
-        if limit:
-            query += f" LIMIT {limit}"
-        self.cursor.execute(query)
-        return self.cursor.fetchall()
-    
-    def get_measurements_by_date(self, start_date, end_date=None):
-
-        if end_date:
-            self.cursor.execute('''
-                SELECT * FROM air_quality_measurements 
-                WHERE date >= %s AND date <= %s
-            ''', (start_date, end_date))
-        else:
-            self.cursor.execute('''
-                SELECT * FROM air_quality_measurements 
-                WHERE date = %s
-            ''', (start_date,))
-        return self.cursor.fetchall()
-    
-    def get_measurements_by_threshold(self, column, min_value=None, max_value=None):
-  
-        valid_columns = ['co_gt', 'no2_gt',
-                        'temperature', 'humidity']
-        
-        if column not in valid_columns:
-            raise ValueError(f"Invalid Column. Valid Columns: {valid_columns}")
-        
-        if min_value is not None and max_value is not None:
-            self.cursor.execute(f'''
-                SELECT * FROM air_quality_measurements 
-                WHERE {column} >= %s AND {column} <= %s
-            ''', (min_value, max_value))
-        elif min_value is not None:
-            self.cursor.execute(f'''
-                SELECT * FROM air_quality_measurements 
-                WHERE {column} >= %s
-            ''', (min_value,))
-        elif max_value is not None:
-            self.cursor.execute(f'''
-                SELECT * FROM air_quality_measurements 
-                WHERE {column} <= %s
-            ''', (max_value,))
-        
-        return self.cursor.fetchall()
-    
     def update_measurement(self, record_id, **kwargs):
-  
         if not kwargs:
             print("No Data to Update.")
             return False
@@ -238,7 +140,6 @@ class AirQualityDatabase:
         return True
     
     def delete_measurement(self, record_id):
-
         self.cursor.execute('''
             DELETE FROM air_quality_measurements WHERE id = %s
         ''', (record_id,))
@@ -263,26 +164,6 @@ class AirQualityDatabase:
             print(f"Error inserting filtered data: {err}")
             raise
     
-    def get_filtered_data_history(self, variable_name=None, filter_type=None, limit=None):
-        query = "SELECT * FROM filtered_data_history WHERE 1=1"
-        params = []
-        
-        if variable_name:
-            query += " AND variable_name = %s"
-            params.append(variable_name)
-        
-        if filter_type:
-            query += " AND filter_type = %s"
-            params.append(filter_type)
-        
-        query += " ORDER BY applied_at DESC"
-        
-        if limit:
-            query += f" LIMIT {limit}"
-        
-        self.cursor.execute(query, params if params else None)
-        return self.cursor.fetchall()
-    
     def get_statistics(self):
         stats = {}
         
@@ -306,78 +187,7 @@ class AirQualityDatabase:
         return stats
     
     def get_data_as_dataframe(self):
-
         query = "SELECT * FROM air_quality_measurements"
         df = pd.read_sql_query(query, self.connection)
         return df
 
-
-#FONCTIONS DE TEST 
-
-def test_database_operations():
-    
-    print("=" * 60)
-    print("Test Database Operations")
-    print("=" * 60)
-    
-    #initialisation
-    db = AirQualityDatabase("db_air_quality")
-    db.connect()
-    
-    print("\n1. Table Creation..")
-    db.create_tables()
-
-    print("\n2. CSV Data Loading...")
-    csv_path = "AirQualityUCI.csv"
-    if os.path.exists(csv_path):
-        db.load_csv_to_database(csv_path)
-    else:
-        print(f"File {csv_path} Not Found.")
-    
-    print("\n3. Data Retrieval Test..")
-    records = db.get_all_measurements(limit=5)
-    print(f"First 5 Records Retrieved: {len(records)} Rows")
-    
-    print("\n4. Date Filtering Test..")
-    filtered = db.get_measurements_by_date("10/03/2004")
-    print(f"Records for 03/10/2004: {len(filtered)} Rows")
-    
-    print("\n5. Threshold Filtering Test (Temperature > 20°C)..")
-    high_temp = db.get_measurements_by_threshold('temperature', min_value=20)
-    print(f"Records with Temperature > 20°C: {len(high_temp)} Rows")
-    
-    print("\n6. New Measurement Insertion Test..")
-    new_id = db.insert_measurement(
-        date="31/12/2025",
-        time="12.00.00",
-        no2_gt=0.03,
-        temperature=15.0,
-        humidity=55.0
-    )
-
-    print("\n7. Update Test..")
-    db.update_measurement(new_id, temperature=16.5, humidity=60.0)
-    
-    print("\n8. Database Statistics..")
-    stats = db.get_statistics()
-    print(f" Total Records: {stats['total_records']}")
-    print(f" Temperature - Moy: {stats['temperature']['moyenne']}°C, "
-          f"Min: {stats['temperature']['min']}°C, Max: {stats['temperature']['max']}°C")
-    
-    print("\n9. Deletion Test..")
-    db.delete_measurement(new_id)
-    
-    print("\n10. DataFrame Retrieval Test..")
-    df = db.get_data_as_dataframe()
-    print(f" DataFrame: {df.shape[0]} rows, {df.shape[1]} columns")
-    print(f" Columns: {list(df.columns)}")
-    
-    db.disconnect()
-    
-    print("\n" + "=" * 60)
-    print("All Tests Passed!")
-    print("=" * 60)
-
-
-if __name__ == "__main__":
-    test_database_operations()
